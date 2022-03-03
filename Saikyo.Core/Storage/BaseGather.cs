@@ -7,7 +7,7 @@ using System.Threading;
 
 namespace Saikyo.Core.Storage
 {
-    internal abstract class BaseGather<T> : IInserter<T>
+    internal abstract class BaseGather<T> : IInserter<T>, IDeleter, IDestroyer
     {
         public const int BaseGatherHeaderSize = 12;
 
@@ -57,6 +57,15 @@ namespace Saikyo.Core.Storage
         }
 
         public abstract long AddData(T t);
+
+        public abstract bool Delete(long id);
+
+        public void Destroy()
+        {
+            this.stream.Close();
+            this.file.Delete();
+            this.rwls.Dispose();
+        }
 
         public virtual void Dispose()
         {

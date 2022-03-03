@@ -50,6 +50,20 @@ namespace Saikyo.Core.Storage
             }
         }
 
+        public override bool Delete(long id)
+        {
+            if (!this.blocks.TryRemove(id, out var avlBlock))
+            {
+                return false;
+            }
+
+            avlBlock.Delete();
+            var block = new DataBlock(this.stream, this.headerSize, id, this.blockSize, true);
+            block.MarkAsDeleted();
+            this.unusedBlocks.PushBlock(block);
+            return true;
+        }
+
         public AVLBlock<T> GetBlock(long id)
         {
             if (id <= 0)
@@ -90,6 +104,56 @@ namespace Saikyo.Core.Storage
             }
 
             return this.GetBlock(this.Root).GetTree();
+        }
+
+        public List<Column> Gt(T t)
+        {
+            if (this.Root <= 0)
+            {
+                return new List<Column>();
+            }
+
+            return this.GetBlock(this.Root).Gt(t);
+        }
+
+        public List<Column> Gte(T t)
+        {
+            if (this.Root <= 0)
+            {
+                return new List<Column>();
+            }
+
+            return this.GetBlock(this.Root).Gte(t);
+        }
+
+        public List<Column> Lt(T t)
+        {
+            if (this.Root <= 0)
+            {
+                return new List<Column>();
+            }
+
+            return this.GetBlock(this.Root).Lt(t);
+        }
+
+        public List<Column> Lte(T t)
+        {
+            if (this.Root <= 0)
+            {
+                return new List<Column>();
+            }
+
+            return this.GetBlock(this.Root).Lte(t);
+        }
+
+        public List<Column> Eq(T t)
+        {
+            if (this.Root <= 0)
+            {
+                return new List<Column>();
+            }
+
+            return this.GetBlock(this.Root).Eq(t);
         }
 
         public override void Dispose()

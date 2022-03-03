@@ -67,6 +67,11 @@ namespace Saikyo.Core.Storage
             this.gatherHeaderSize = gatherHeaderSize;
         }
 
+        public void MarkAsDeleted()
+        {
+            this.State = 1;
+        }
+
         public virtual void Dispose()
         {
             if (!this.changed)

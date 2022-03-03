@@ -6,7 +6,7 @@ using System.Threading;
 
 namespace Saikyo.Core.Storage
 {
-    internal class TextGather : IInserter<string>, IDisposable, IColumnGetter
+    internal class TextGather : IInserter<string>, IDisposable, IColumnGetter, IDeleter, IDestroyer
     {
         public string Database { get; private set; }
 
@@ -35,6 +35,11 @@ namespace Saikyo.Core.Storage
                 }
                 return this.keyGather.AddData(BitConverter.GetBytes(valueId));
             });
+        }
+
+        public bool Delete(long id)
+        {
+            throw new NotImplementedException();
         }
 
         public Column GetColumn(long id)
@@ -74,6 +79,13 @@ namespace Saikyo.Core.Storage
         {
             this.keyGather.Dispose();
             this.valueGather.Dispose();
+            this.rwls.Dispose();
+        }
+
+        public void Destroy()
+        {
+            this.keyGather.Destroy();
+            this.valueGather.Destroy();
             this.rwls.Dispose();
         }
     }

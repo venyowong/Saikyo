@@ -48,6 +48,11 @@ namespace Saikyo.Core.Storage
             });
         }
 
+        public override bool Delete(long id)
+        {
+            throw new NotImplementedException();
+        }
+
         public Record GetRecord(long id)
         {
             if (this.records.ContainsKey(id))

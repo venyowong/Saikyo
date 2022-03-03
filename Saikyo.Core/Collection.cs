@@ -1,4 +1,6 @@
 ﻿using Saikyo.Core.Attributes;
+using Saikyo.Core.Helpers;
+using Saikyo.Core.Query;
 using Saikyo.Core.Storage;
 using System;
 using System.Collections.Concurrent;
@@ -15,10 +17,11 @@ namespace Saikyo.Core
 
         public string Name { get; private set; }
 
-        private ReaderWriterLockSlim rwl = new ReaderWriterLockSlim();
+        public string Key { get; private set; }
+
+        private ReaderWriterLockSlim rwls = new ReaderWriterLockSlim();
         private PropertyInfo[] properties;
         private Dictionary<string, dynamic> columnGathers = new Dictionary<string, dynamic>();
-        private string key;
 
         public Collection(string db, string name)
         {
@@ -30,9 +33,9 @@ namespace Saikyo.Core
                 var gather = Instance.Kernel.GetGather(db, name, property);
                 if (gather != null)
                 {
-                    if (string.IsNullOrWhiteSpace(this.key))
+                    if (string.IsNullOrWhiteSpace(this.Key))
                     {
-                        this.key = property.Name; // default use first property as key
+                        this.Key = property.Name; // default use first property as key
                     }
                     if (property.GetCustomAttribute<KeyAttribute>() != null)
                     {
@@ -41,7 +44,7 @@ namespace Saikyo.Core
                             throw new NotSupportedException($"{property.Name} is a string with no specified size, so it cannot be used as key");
                         }
 
-                        this.key = property.Name;
+                        this.Key = property.Name;
                     }
                     this.columnGathers.Add(property.Name, gather);
                 }
@@ -73,30 +76,42 @@ namespace Saikyo.Core
             }
         }
 
-        public List<T> GetAll()
-        {
-            if (string.IsNullOrWhiteSpace(this.key))
-            {
-                return new List<T>();
-            }
+        public QueryBuilder<T> Query(string condition = "") => new QueryBuilder<T>(this, condition);
 
-            List<Column> keys = this.columnGathers[this.key].GetAllBlocks();
-            return this.Compose(keys.Select(x => x.Id).ToList(), new Dictionary<string, Dictionary<long, Column>>
-            {
-                { this.key, keys.ToDictionary(x => x.Id, x => x) }
-            });
+        public void Drop()
+        {
+            this.columnGathers.Values.AsParallel().ForAll(x => x.Destroy());
+            this.rwls.Dispose();
         }
 
         public void Dispose()
         {
             this.columnGathers.Values.AsParallel().ForAll(x => x.Dispose());
-            this.rwl.Dispose();
+            this.rwls.Dispose();
         }
 
-        private List<T> Compose(List<long> ids, Dictionary<string, Dictionary<long, Column>> indeies)
+        internal dynamic GetGather(string column)
         {
+            if (!this.columnGathers.ContainsKey(column))
+            {
+                return null;
+            }
+
+            return this.columnGathers[column];
+        }
+
+        internal Type GetPropertyType(string column) => this.properties.FirstOrDefault(p => p.Name == column)?.PropertyType;
+
+        internal List<T> Compose(List<long> ids, Dictionary<string, Dictionary<long, Column>> indeies,
+            params string[] properties)
+        {
+            if (properties.IsNullOrEmpty())
+            {
+                properties = this.properties.Select(p => p.Name).ToArray();
+            }
+
             var columns = new ConcurrentDictionary<string, Dictionary<long, Column>>();
-            this.columnGathers.AsParallel().ForAll(g =>
+            this.columnGathers.Where(x => properties.Contains(x.Key)).AsParallel().ForAll(g =>
             {
                 Dictionary<long, Column> columnMap = null;
                 if (indeies.ContainsKey(g.Key))
@@ -141,6 +156,22 @@ namespace Saikyo.Core
                 return row;
             })
             .ToList();
+        }
+
+        internal bool Delete(List<long> ids)
+        {
+            var result = true;
+            this.columnGathers.Values.AsParallel().ForAll(g =>
+            {
+                ids.ForEach(id =>
+                {
+                    if (!g.Delete(id))
+                    {
+                        result = false;
+                    }
+                });
+            });
+            return result;
         }
     }
 }

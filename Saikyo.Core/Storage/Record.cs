@@ -81,6 +81,16 @@ namespace Saikyo.Core.Storage
 
         public int GetBlockCount() => this.rwls.ReadLock(() => this.blocks.Count);
 
+        public void PushBlock(DataBlock block)
+        {
+            this.rwls.WriteLock(() =>
+            {
+                var lastBlock = this.blocks[this.blocks.Count - 1];
+                lastBlock.UpdateNextBlock(block.Id);
+                this.blocks.Add(block);
+            });
+        }
+
         public DataBlock PopBlock()
         {
             return this.rwls.WriteLock(() =>
