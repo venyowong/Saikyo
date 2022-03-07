@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
-namespace Saikyo.Core.Helpers
+namespace Saikyo.Core.Extensions
 {
     internal static class CollectionExtension
     {

@@ -4,7 +4,7 @@ using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 
-namespace Saikyo.Core.Helpers
+namespace Saikyo.Core.Extensions
 {
     internal static class ByteExtension
     {

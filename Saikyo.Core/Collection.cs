@@ -1,5 +1,5 @@
 ﻿using Saikyo.Core.Attributes;
-using Saikyo.Core.Helpers;
+using Saikyo.Core.Extensions;
 using Saikyo.Core.Query;
 using Saikyo.Core.Storage;
 using System;
@@ -22,6 +22,7 @@ namespace Saikyo.Core
         private ReaderWriterLockSlim rwls = new ReaderWriterLockSlim();
         private PropertyInfo[] properties;
         private Dictionary<string, dynamic> columnGathers = new Dictionary<string, dynamic>();
+        private bool disposed = false;
 
         public Collection(string db, string name)
         {
@@ -57,6 +58,10 @@ namespace Saikyo.Core
             {
                 throw new ArgumentNullException();
             }
+            if (this.disposed)
+            {
+                throw new InvalidOperationException("This collection has been disposed, you can't add data into it");
+            }
 
             // todo: constraint check
 
@@ -76,22 +81,43 @@ namespace Saikyo.Core
             }
         }
 
-        public QueryBuilder<T> Query(string condition = "") => new QueryBuilder<T>(this, condition);
+        public QueryBuilder<T> Query(string condition = "")
+        {
+            if (this.disposed)
+            {
+                throw new InvalidOperationException("This collection has been disposed, you can't get data from it");
+            }
+
+            return new QueryBuilder<T>(this, condition);
+        }
 
         public void Drop()
         {
-            this.columnGathers.Values.AsParallel().ForAll(x => x.Destroy());
-            this.rwls.Dispose();
+            if (!this.disposed)
+            {
+                this.disposed = true;
+                this.columnGathers.Values.AsParallel().ForAll(x => x.Destroy());
+                this.rwls.Dispose();
+            }
         }
 
         public void Dispose()
         {
-            this.columnGathers.Values.AsParallel().ForAll(x => x.Dispose());
-            this.rwls.Dispose();
+            if (!this.disposed)
+            {
+                this.disposed = true;
+                this.columnGathers.Values.AsParallel().ForAll(x => x.Dispose());
+                this.rwls.Dispose();
+            }
         }
 
         internal dynamic GetGather(string column)
         {
+            if (this.disposed)
+            {
+                throw new InvalidOperationException("This collection has been disposed, you can't get data from it");
+            }
+
             if (!this.columnGathers.ContainsKey(column))
             {
                 return null;
@@ -105,6 +131,11 @@ namespace Saikyo.Core
         internal List<T> Compose(List<long> ids, Dictionary<string, Dictionary<long, Column>> indeies,
             params string[] properties)
         {
+            if (this.disposed)
+            {
+                throw new InvalidOperationException("This collection has been disposed, you can't get data from it");
+            }
+
             if (properties.IsNullOrEmpty())
             {
                 properties = this.properties.Select(p => p.Name).ToArray();
@@ -160,6 +191,11 @@ namespace Saikyo.Core
 
         internal bool Delete(List<long> ids)
         {
+            if (this.disposed)
+            {
+                throw new InvalidOperationException("This collection has been disposed, you can't delete data from it");
+            }
+
             var result = true;
             this.columnGathers.Values.AsParallel().ForAll(g =>
             {
@@ -172,6 +208,22 @@ namespace Saikyo.Core
                 });
             });
             return result;
+        }
+
+        internal void Update(string column, List<long> ids, dynamic value)
+        {
+            if (this.disposed)
+            {
+                throw new InvalidOperationException("This collection has been disposed, you can't update data in it");
+            }
+
+            var gather = this.GetGather(column);
+            if (gather == null)
+            {
+                return;
+            }
+
+            ids.ForEach(x => gather.Update(x, value));
         }
     }
 }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 
-namespace Saikyo.Core.Helpers
+namespace Saikyo.Core.Extensions
 {
     internal static class LockerExtension
     {

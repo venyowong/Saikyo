@@ -1,9 +1,6 @@
-﻿using Saikyo.Core.Helpers;
-using System;
-using System.Collections.Concurrent;
+﻿using Saikyo.Core.Extensions;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 
 namespace Saikyo.Core.Query
@@ -75,6 +72,14 @@ namespace Saikyo.Core.Query
 
         public List<T> Select(params string[] columns) => this.collection.Compose(this.ids, this.indeies, columns);
 
+        public int Count() => this.ids.Count;
+
         public bool Delete() => this.collection.Delete(this.ids);
+
+        public QueryResult<T> Update(string column, object value)
+        {
+            this.collection.Update(column, this.ids, value);
+            return this;
+        }
     }
 }

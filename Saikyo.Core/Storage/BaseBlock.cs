@@ -1,10 +1,7 @@
-﻿using Saikyo.Core.Helpers;
+﻿using Saikyo.Core.Extensions;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace Saikyo.Core.Storage
 {
@@ -51,6 +48,7 @@ namespace Saikyo.Core.Storage
             }
             else
             {
+                this.changed = true;
                 this.Data = new byte[0];
                 this.InitData();
             }
@@ -70,6 +68,7 @@ namespace Saikyo.Core.Storage
         public void MarkAsDeleted()
         {
             this.State = 1;
+            this.changed = true;
         }
 
         public virtual void Dispose()

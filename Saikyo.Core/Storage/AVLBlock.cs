@@ -1,9 +1,6 @@
-﻿using Saikyo.Core.Helpers;
+﻿using Saikyo.Core.Extensions;
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Saikyo.Core.Storage
 {
@@ -31,8 +28,8 @@ namespace Saikyo.Core.Storage
 
         private BinaryGather<T> gather;
 
-        public AVLBlock(Stream stream, int gatherHeaderSize, long id, int blockSize, BinaryGather<T> gather) 
-            : base(stream, gatherHeaderSize, id, blockSize)
+        public AVLBlock(long id, BinaryGather<T> gather) 
+            : base(gather.Stream, gather.HeaderSize, id, gather.BlockSize)
         {
             this.gather = gather;
 
@@ -42,8 +39,8 @@ namespace Saikyo.Core.Storage
             }
         }
 
-        public AVLBlock(Stream stream, int gatherHeaderSize, long id, int blockSize, T t, BinaryGather<T> gather) 
-            : base(stream, gatherHeaderSize, id, blockSize, t.ToBytes())
+        public AVLBlock(long id, T t, BinaryGather<T> gather) 
+            : base(gather.Stream, gather.HeaderSize, id, gather.BlockSize, t.ToBytes())
         {
             this.Value = t;
             this.gather = gather;
@@ -92,6 +89,7 @@ namespace Saikyo.Core.Storage
                 if (this.Right <= 0) // leaf
                 {
                     this.gather.GetBlock(this.Parent).UpdateDepth(this.Id, 0);
+                    this.Parent = 0;
                 }
                 else // only right
                 {
@@ -122,17 +120,33 @@ namespace Saikyo.Core.Storage
                 }
                 else // both
                 {
+                    this.changed = true;
+
                     var replace = this.gather.GetBlock(this.Right).GetMinBlock();
+                    replace.Delete();
+                    replace.changed = true;
+
                     replace.Left = this.Left;
                     replace.LeftDepth = this.LeftDepth;
+                    this.Left = 0;
+                    this.LeftDepth = 0;
                     var left = this.gather.GetBlock(this.Left);
-                    left.Parent = replace.Id;
+                    if (left != null)
+                    {
+                        left.Parent = replace.Id;
+                        left.changed = true;
+                    }
 
-                    replace.Delete();
                     replace.Right = this.Right;
                     replace.RightDepth = this.RightDepth;
+                    this.Right = 0;
+                    this.RightDepth = 0;
                     var right = this.gather.GetBlock(this.Right);
-                    right.Parent = replace.Id;
+                    if (right != null)
+                    {
+                        right.Parent = replace.Id;
+                        right.changed = true;
+                    }
 
                     var parent = this.gather.GetBlock(this.Parent);
                     if (parent == null)
@@ -145,6 +159,21 @@ namespace Saikyo.Core.Storage
                     }
                 }
             }
+        }
+
+        public void UpdateValue(T t)
+        {
+            if (this.Value.CompareTo(t) == 0)
+            {
+                return;
+            }
+
+            this.Delete();
+            this.Value = t;
+            this.Data = t.ToBytes();
+            this.DataSize = this.Data.Length;
+            this.changed = true;
+            this.gather.GetBlock(this.gather.Root).AddBlock(this);
         }
 
         public List<Column> GetTree()
@@ -559,6 +588,7 @@ namespace Saikyo.Core.Storage
             if (lr != null)
             {
                 lr.Parent = this.Id;
+                lr.changed = true;
                 this.Left = lr.Id;
                 this.LeftDepth = lr.Depth;
             }
@@ -570,6 +600,7 @@ namespace Saikyo.Core.Storage
             this.Parent = left.Id;
             left.Right = this.Id;
             left.RightDepth = this.Depth;
+            left.changed = true;
 
             if (parent != null)
             {
@@ -592,6 +623,7 @@ namespace Saikyo.Core.Storage
             if (rl != null)
             {
                 rl.Parent = this.Id;
+                rl.changed = true;
                 this.Right = rl.Id;
                 this.RightDepth = rl.Depth;
             }
@@ -603,6 +635,7 @@ namespace Saikyo.Core.Storage
             this.Parent = right.Id;
             right.Left = this.Id;
             right.LeftDepth = this.Depth;
+            right.changed = true;
 
             if (parent != null)
             {

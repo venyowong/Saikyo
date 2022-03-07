@@ -1,6 +1,5 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using Saikyo.Core;
-using Saikyo.Core.Storage;
 using Test;
 
 Instance.Init();
@@ -10,10 +9,9 @@ using var collection = db.GetCollection<Model>("model");
 //{
 //    collection.Insert(new Model { Id = 1 + i, Age = 10 + i, Name = "foo" + i, Value = "bar" + i });
 //}
-collection.Query("Id == 1 || Id == 3").Build().Delete();
+//Console.WriteLine(collection.Query("Id == 1 || Id == 3").Build().Delete());
+collection.Query("Age == 25")
+    .Build()
+    .Update("Age", 15)
+    .Update("Name", "foo15");
 Console.WriteLine(collection);
-//var list = collection.GetAll();
-//var result = collection.Query("Age >= 20 && Age <= 30").Build();
-//result = collection.Query("Age >= 50").Build();
-//var list = result.Select();
-//Console.WriteLine(list.Count);

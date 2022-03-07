@@ -4,7 +4,7 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Saikyo.Core.Helpers
+namespace Saikyo.Core.Extensions
 {
     internal static class StreamExtension
     {

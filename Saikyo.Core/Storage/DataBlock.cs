@@ -1,8 +1,6 @@
-﻿using Saikyo.Core.Helpers;
+﻿using Saikyo.Core.Extensions;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
 
 namespace Saikyo.Core.Storage
 {
@@ -35,6 +33,12 @@ namespace Saikyo.Core.Storage
             {
                 this.NextBlock = nextBlock;
             });
+        }
+
+        public void Update(byte[] bytes)
+        {
+            this.Data = bytes;
+            this.DataSize = bytes.Length;
         }
 
         public override void Dispose()

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Serilog;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -16,6 +17,8 @@ namespace Saikyo.Core.Exceptions
             this.expression = exp;
             this.position = pos;
             this.message = msg;
+
+            Log.Warning($"your expression has some error, exp: {expression}, pos: {position}, msg: {message}");
         }
     }
 }

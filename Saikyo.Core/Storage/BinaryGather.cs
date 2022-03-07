@@ -1,9 +1,8 @@
-﻿using Saikyo.Core.Helpers;
+﻿using Saikyo.Core.Extensions;
+using Serilog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 
 namespace Saikyo.Core.Storage
 {
@@ -20,49 +19,38 @@ namespace Saikyo.Core.Storage
 
         public override long AddData(T t)
         {
-            try
+            return this.rwls.WriteLock(() =>
             {
-                this.rwls.TryEnterWriteLock(Instance.Config.ReaderWriterLockTimeout);
-                try
-                {
-                    var id = this.GetFreeBlockId();
-                    var block = new AVLBlock<T>(this.stream, this.headerSize, id, this.blockSize, t, this);
-                    this.blocks.TryAdd(id, block);
+                var id = this.GetFreeBlockId();
+                var block = new AVLBlock<T>(id, t, this);
+                this.blocks.TryAdd(id, block);
 
-                    if (this.Root == 0)
-                    {
-                        this.Root = id;
-                    }
-                    else
-                    {
-                        this.GetBlock(this.Root).AddBlock(block);
-                    }
-                    return id;
-                }
-                finally
+                if (this.Root == 0)
                 {
-                    this.rwls.ExitWriteLock();
+                    this.Root = id;
                 }
-            }
-            catch (ApplicationException)
-            {
-                return -1;
-            }
+                else
+                {
+                    this.GetBlock(this.Root).AddBlock(block);
+                }
+                return id;
+            });
         }
 
         public override bool Delete(long id)
         {
             if (!this.blocks.TryRemove(id, out var avlBlock))
             {
-                return false;
+                avlBlock = new AVLBlock<T>(id, this);
             }
-
             avlBlock.Delete();
-            var block = new DataBlock(this.stream, this.headerSize, id, this.blockSize, true);
+            var block = new DataBlock(this.Stream, this.HeaderSize, id, this.BlockSize, true);
             block.MarkAsDeleted();
             this.unusedBlocks.PushBlock(block);
             return true;
         }
+
+        public override void Update(long id, T t) => this.GetBlock(id).UpdateValue(t);
 
         public AVLBlock<T> GetBlock(long id)
         {
@@ -76,7 +64,7 @@ namespace Saikyo.Core.Storage
                 return this.blocks[id];
             }
 
-            var block = new AVLBlock<T>(this.stream, this.headerSize, id, this.blockSize, this);
+            var block = new AVLBlock<T>(id, this);
             this.blocks.TryAdd(id, block);
             return block;
         }
@@ -158,13 +146,15 @@ namespace Saikyo.Core.Storage
 
         public override void Dispose()
         {
+            var time = DateTime.Now;
             foreach (var b in this.blocks.Values)
             {
                 b.Dispose();
             }
-            this.stream.Write(BaseGatherHeaderSize, BitConverter.GetBytes(this.Root));
+            this.Stream.Write(BaseGatherHeaderSize, BitConverter.GetBytes(this.Root));
 
             base.Dispose();
+            Log.Information($"{this.Database}/{this.Collection}/{this.name}.gather took {DateTime.Now - time} to dispose");
         }
 
         public override string ToString()
@@ -181,9 +171,9 @@ namespace Saikyo.Core.Storage
         {
             if (this.latestBlockId > 0)
             {
-                this.Root = this.stream.ReadAsLong(BaseGatherHeaderSize);
+                this.Root = this.Stream.ReadAsLong(BaseGatherHeaderSize);
             }
-            this.headerSize += 8;
+            this.HeaderSize += 8;
         }
     }
 }

@@ -18,11 +18,6 @@ namespace Saikyo.Core
         private ConcurrentDictionary<string, ConstructorInfo> gatherConstractors = new ConcurrentDictionary<string, ConstructorInfo>();
         private ConcurrentDictionary<PropertyInfo, int> propertySizes = new ConcurrentDictionary<PropertyInfo, int>();
 
-        public Kernel()
-        {
-            Log.Information("SaikyoDB init kernel");
-        }
-
         public Database GetDatabase(string db)
         {
             if (this.databases.ContainsKey(db))

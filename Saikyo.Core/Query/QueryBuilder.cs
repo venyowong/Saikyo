@@ -1,10 +1,9 @@
 ﻿using Saikyo.Core.Exceptions;
-using Saikyo.Core.Helpers;
+using Saikyo.Core.Extensions;
 using Saikyo.Core.Storage;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 
 namespace Saikyo.Core.Query
 {

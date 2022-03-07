@@ -1,10 +1,8 @@
-﻿using Saikyo.Core.Helpers;
+﻿using Saikyo.Core.Extensions;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 
 namespace Saikyo.Core.Storage
 {
@@ -28,7 +26,7 @@ namespace Saikyo.Core.Storage
                 return -1;
             }
 
-            var blockCount = Math.Ceiling((double)bytes.Length / (this.blockSize - 1));
+            var blockCount = Math.Ceiling((double)bytes.Length / (this.BlockSize - 1));
             if (!this.multipleBlocks && blockCount > 1)
             {
                 throw new InvalidDataException($"{this.name}.gather doesn't allow store data in multiple blocks");
@@ -42,7 +40,7 @@ namespace Saikyo.Core.Storage
                     ids.Add(this.GetFreeBlockId());
                 }
 
-                var record = new Record(this.Database, this.Collection, this.headerSize, this.stream, this.blockSize, bytes, ids.ToArray());
+                var record = new Record(this.Database, this.Collection, this.HeaderSize, this.Stream, this.BlockSize, bytes, this, ids.ToArray());
                 this.records.TryAdd(record.Id, record);
                 return record.Id;
             });
@@ -50,7 +48,46 @@ namespace Saikyo.Core.Storage
 
         public override bool Delete(long id)
         {
-            throw new NotImplementedException();
+            if (!this.records.TryRemove(id, out var record))
+            {
+                record = new Record(this.Database, this.Collection, this.HeaderSize, this.Stream, id, this.BlockSize, this);
+            }
+
+            foreach (var block in record.Blocks)
+            {
+                block.MarkAsDeleted();
+                this.unusedBlocks.PushBlock(block);
+            }
+            return true;
+        }
+
+        public override void Update(long id, byte[] bytes)
+        {
+            var blockCount = Math.Ceiling((double)bytes.Length / (this.BlockSize - 1));
+            if (!this.multipleBlocks && blockCount > 1)
+            {
+                throw new InvalidDataException($"{this.name}.gather doesn't allow store data in multiple blocks");
+            }
+
+            this.rwls.WriteLock(() =>
+            {
+                Record record = null;
+                if (this.records.ContainsKey(id))
+                {
+                    record = this.records[id];
+                }
+                if (record == null)
+                {
+                    record = new Record(this.Database, this.Collection, this.HeaderSize, this.Stream, id, this.BlockSize, this);
+                }
+
+                var ids = new List<long>();
+                for (var i = 0; i < blockCount - record.Blocks.Count; i++)
+                {
+                    ids.Add(this.GetFreeBlockId());
+                }
+                record.Update(bytes, ids.ToArray());
+            });
         }
 
         public Record GetRecord(long id)
@@ -67,7 +104,7 @@ namespace Saikyo.Core.Storage
                     return this.records[id];
                 }
 
-                var record = new Record(this.Database, this.Collection, this.headerSize, this.stream, id, this.blockSize);
+                var record = new Record(this.Database, this.Collection, this.HeaderSize, this.Stream, id, this.BlockSize, this);
                 this.records.TryAdd(id, record);
                 return record;
             });

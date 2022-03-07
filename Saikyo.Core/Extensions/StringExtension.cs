@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace Saikyo.Core.Helpers
+namespace Saikyo.Core.Extensions
 {
     internal static class StringExtension
     {

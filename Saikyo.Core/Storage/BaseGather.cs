@@ -1,27 +1,28 @@
-﻿using Saikyo.Core.Helpers;
+﻿using Saikyo.Core.Extensions;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Threading;
 
 namespace Saikyo.Core.Storage
 {
-    internal abstract class BaseGather<T> : IInserter<T>, IDeleter, IDestroyer
+    internal abstract class BaseGather<T> : IInserter<T>, IBlockDeleter, IDestroyer, IUpdater<T>
     {
         public const int BaseGatherHeaderSize = 12;
 
-        public string Database { get; private set; }
+        public string Database { get; protected set; }
 
-        public string Collection { get; private set; }
+        public string Collection { get; protected set; }
+
+        public int HeaderSize { get; protected set; } = BaseGatherHeaderSize;
+
+        public int BlockSize { get; protected set; }
+
+        public FileStream Stream { get; protected set; }
 
         protected string name;
-        protected int blockSize;
         protected FileInfo file;
-        protected FileStream stream;
         protected long latestBlockId;
         protected Record unusedBlocks;
-        protected int headerSize = BaseGatherHeaderSize;
         protected ReaderWriterLockSlim rwls = new ReaderWriterLockSlim();
 
         public BaseGather(string database, string collection, string name, int blockSize)
@@ -29,7 +30,7 @@ namespace Saikyo.Core.Storage
             this.Database = database;
             this.Collection = collection;
             this.name = name;
-            this.blockSize = blockSize;
+            this.BlockSize = blockSize;
             var directory = new DirectoryInfo(Path.Combine(Instance.Config.DataPath, Path.Combine(database, collection)));
             if (!directory.Exists)
             {
@@ -38,21 +39,21 @@ namespace Saikyo.Core.Storage
             this.file = new FileInfo(Path.Combine(directory.FullName, $"{name}.gather"));
             if (this.file.Exists)
             {
-                this.stream = new FileStream(file.FullName, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
-                this.latestBlockId = this.stream.ReadAsLong(0);
-                this.blockSize = this.stream.ReadAsInt32(8);
-                if (this.blockSize != blockSize)
+                this.Stream = new FileStream(file.FullName, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+                this.latestBlockId = this.Stream.ReadAsLong(0);
+                this.BlockSize = this.Stream.ReadAsInt32(8);
+                if (this.BlockSize != blockSize)
                 {
-                    throw new ArgumentException($"{this.file.FullName} already exists, and the block size is {this.blockSize}, which does not match the input of block size {blockSize}");
+                    throw new ArgumentException($"{this.file.FullName} already exists, and the block size is {this.BlockSize}, which does not match the input of block size {blockSize}");
                 }
                 this.Init();
-                this.unusedBlocks = new Record(database, collection, this.headerSize, this.stream, 0, blockSize);
+                this.unusedBlocks = new Record(database, collection, this.HeaderSize, this.Stream, 0, blockSize, this);
             }
             else
             {
-                this.stream = new FileStream(file.FullName, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite);
+                this.Stream = new FileStream(file.FullName, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite);
                 this.Init();
-                this.unusedBlocks = new Record(database, collection, this.headerSize, this.stream, 0, blockSize, true);
+                this.unusedBlocks = new Record(database, collection, this.HeaderSize, this.Stream, 0, blockSize, this, true);
             }
         }
 
@@ -60,20 +61,22 @@ namespace Saikyo.Core.Storage
 
         public abstract bool Delete(long id);
 
+        public abstract void Update(long id, T t);
+
         public void Destroy()
         {
-            this.stream.Close();
+            this.Stream.Close();
             this.file.Delete();
             this.rwls.Dispose();
         }
 
         public virtual void Dispose()
         {
-            this.stream.Write(0, BitConverter.GetBytes(this.latestBlockId));
-            this.stream.Write(8, BitConverter.GetBytes(this.blockSize));
+            this.Stream.Write(0, BitConverter.GetBytes(this.latestBlockId));
+            this.Stream.Write(8, BitConverter.GetBytes(this.BlockSize));
             this.unusedBlocks.Dispose();
-            this.stream.Flush();
-            this.stream.Dispose();
+            this.Stream.Flush();
+            this.Stream.Dispose();
             this.rwls.Dispose();
         }
 

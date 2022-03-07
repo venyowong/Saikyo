@@ -4,8 +4,8 @@ using System.Text;
 
 namespace Saikyo.Core.Storage
 {
-    internal interface IDeleter
+    internal interface IUpdater<T>
     {
-        bool Delete(long id);
+        void Update(long id, T t);
     }
 }
