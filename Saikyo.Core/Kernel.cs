@@ -38,6 +38,27 @@ namespace Saikyo.Core
             }
         }
 
+        public Collection GetCollection(string db, string name)
+        {
+            var key = $"{db}.{name}";
+            if (this.collections.ContainsKey(key))
+            {
+                return this.collections[key] as Collection;
+            }
+
+            lock (this.collections)
+            {
+                if (this.collections.ContainsKey(key))
+                {
+                    return this.collections[key] as Collection;
+                }
+
+                var collection = new Collection(db, name);
+                this.collections.TryAdd(key, collection);
+                return collection;
+            }
+        }
+
         public Collection<T> GetCollection<T>(string db, string name) where T : new()
         {
             var key = $"{db}.{name}";
@@ -59,7 +80,7 @@ namespace Saikyo.Core
             }
         }
 
-        public dynamic GetGather(string database, string collection, PropertyInfo property)
+        public IGather GetGather(string database, string collection, PropertyInfo property)
         {
             var blockSize = GetBlockSize(property);
             if (blockSize == 0 && Type.GetTypeCode(property.PropertyType) != TypeCode.String)
@@ -81,19 +102,54 @@ namespace Saikyo.Core
 
             if (this.gatherConstractors.ContainsKey(property.PropertyType.Name))
             {
-                return this.gatherConstractors[property.PropertyType.Name].Invoke(new object[] { database, collection, property.Name, GetBlockSize(property) });
+                return (IGather)this.gatherConstractors[property.PropertyType.Name].Invoke(new object[] { database, collection, property.Name, blockSize });
             }
 
             lock (this.gatherConstractors)
             {
                 if (this.gatherConstractors.ContainsKey(property.PropertyType.Name))
                 {
-                    return this.gatherConstractors[property.PropertyType.Name].Invoke(new object[] { database, collection, property.Name, GetBlockSize(property) });
+                    return (IGather)this.gatherConstractors[property.PropertyType.Name].Invoke(new object[] { database, collection, property.Name, blockSize });
                 }
 
                 var constructor = typeof(BinaryGather<>).MakeGenericType(property.PropertyType).GetConstructors().First();
                 this.gatherConstractors.TryAdd(property.PropertyType.Name, constructor);
-                return constructor.Invoke(new object[] { database, collection, property.Name, GetBlockSize(property) });
+                return (IGather)constructor.Invoke(new object[] { database, collection, property.Name, blockSize });
+            }
+        }
+
+        public IGather GetGather(string database, string collection, string key, Type type, int size = 0)
+        {
+            var blockSize = GetBlockSize(type);
+            if (blockSize == 0 && size > 0)
+            {
+                blockSize = size + Const.AVLBlockHeaderSize;
+            }
+            if (blockSize == 0 && Type.GetTypeCode(type) != TypeCode.String)
+            {
+                throw new NotSupportedException($"The property {key} is {type.Name}, which is not supported. Please use IgnoreAttribute to ignore this property");
+            }
+
+            if (blockSize == 0)
+            {
+                return new TextGather(database, collection, key);
+            }
+
+            if (this.gatherConstractors.ContainsKey(type.Name))
+            {
+                return (IGather)this.gatherConstractors[type.Name].Invoke(new object[] { database, collection, key, blockSize });
+            }
+
+            lock (this.gatherConstractors)
+            {
+                if (this.gatherConstractors.ContainsKey(type.Name))
+                {
+                    return (IGather)this.gatherConstractors[type.Name].Invoke(new object[] { database, collection, key, blockSize });
+                }
+
+                var constructor = typeof(BinaryGather<>).MakeGenericType(type).GetConstructors().First();
+                this.gatherConstractors.TryAdd(type.Name, constructor);
+                return (IGather)constructor.Invoke(new object[] { database, collection, key, blockSize });
             }
         }
 
@@ -150,6 +206,40 @@ namespace Saikyo.Core
                 this.propertySizes.TryAdd(property, result);
                 return result;
             }
+        }
+
+        private int GetBlockSize(Type type)
+        {
+            var result = default(int);
+            var code = Type.GetTypeCode(type);
+            switch (code)
+            {
+                case TypeCode.Boolean:
+                case TypeCode.SByte:
+                case TypeCode.Byte:
+                    result = 1 + Const.AVLBlockHeaderSize;
+                    break;
+                case TypeCode.Int16:
+                case TypeCode.UInt16:
+                    result = 2 + Const.AVLBlockHeaderSize;
+                    break;
+                case TypeCode.Char:
+                case TypeCode.Int32:
+                case TypeCode.UInt32:
+                case TypeCode.Single:
+                    result = 4 + Const.AVLBlockHeaderSize;
+                    break;
+                case TypeCode.DateTime:
+                case TypeCode.Double:
+                case TypeCode.Int64:
+                case TypeCode.UInt64:
+                    result = 8 + Const.AVLBlockHeaderSize;
+                    break;
+                case TypeCode.Decimal:
+                    result = 200 + Const.AVLBlockHeaderSize;
+                    break;
+            }
+            return result;
         }
     }
 }

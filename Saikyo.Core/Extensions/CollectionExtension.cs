@@ -1,31 +1,88 @@
-﻿using System;
+﻿using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Saikyo.Core.Exceptions;
+using Saikyo.Core.Helpers;
+using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
 
 namespace Saikyo.Core.Extensions
 {
-    internal static class CollectionExtension
+    public static class CollectionExtension
     {
-        public static bool IsNullOrEmpty<T>(this IEnumerable<T> list) => list == null || list.Count() <= 0;
-
-        public static void Merge<T1, T2>(this Dictionary<T1, T2> dict1, Dictionary<T1, T2> dict2, Func<T2, T2, T2> conflictHandler)
+        public static Collection Configure(this Collection collection, IConfiguration config)
         {
-            if (dict1 == null || dict2 == null || conflictHandler == null)
+            if (collection == null || config == null)
             {
-                return;
+                return collection;
             }
 
-            foreach (var item in dict2)
+            var subConfig = config.GetSection(collection.Name);
+            if (subConfig != null)
             {
-                if (!dict1.ContainsKey(item.Key))
+                config = subConfig;
+            }
+            foreach (var property in config.GetChildren())
+            {
+                var name = property.Key;
+                if (collection.ColumnGathers.ContainsKey(name))
                 {
-                    dict2[item.Key] = item.Value;
                     continue;
                 }
 
-                dict1[item.Key] = conflictHandler(dict1[item.Key], item.Value);
+                var type = property.GetSection("type");
+                if (type == null)
+                {
+                    throw new ConfigurationException($"There is no type section under configuration section({name})");
+                }
+                int.TryParse(property.GetSection("size")?.Value, out int size);
+                bool.TryParse(property.GetSection("key")?.Value, out var key);
+                collection.SetProperty(name, TypeHelper.GetType(type.Value), size, key);
             }
+            return collection;
+        }
+
+        public static Collection Configure(this Collection collection, string json)
+        {
+            if (collection == null || string.IsNullOrWhiteSpace(json))
+            {
+                return collection;
+            }
+
+            var jObject = JsonConvert.DeserializeObject<JObject>(json);
+            if (jObject.ContainsKey(collection.Name))
+            {
+                jObject = (JObject)jObject[collection.Name];
+            }
+            foreach (var item in jObject)
+            {
+                var name = item.Key;
+                if (collection.ColumnGathers.ContainsKey(name))
+                {
+                    continue;
+                }
+
+                var property = (JObject)item.Value;
+                if (!property.ContainsKey("type"))
+                {
+                    throw new ConfigurationException($"There is no type path under json path({name})");
+                }
+                var type = property["type"].Value<string>();
+                var size = 0;
+                if (property.ContainsKey("size"))
+                {
+                    size = property["size"].Value<int>();
+                }
+                var key = false;
+                if (property.ContainsKey("key"))
+                {
+                    key = property["key"].Value<bool>();
+                }
+                collection.SetProperty(name, TypeHelper.GetType(type), size, key);
+            }
+
+            return collection;
         }
     }
 }

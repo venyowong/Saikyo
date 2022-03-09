@@ -7,25 +7,32 @@ namespace Saikyo.Core.Storage
     internal class AVLBlock<T> : BaseBlock where T : IComparable<T>
     {
         public T Value { get; private set; }
-
-        public long Parent { get; set; }
-
-        public long Left { get; set; }
-
-        public byte LeftDepth { get; set; }
-
-        public long Right { get; set; }
-
-        public byte RightDepth { get; set; }
-
+        
         public byte Depth
         {
             get
             {
-                return (byte)(this.LeftDepth > this.RightDepth ? this.LeftDepth + 1 : this.RightDepth + 1);
+                return (byte)(this.leftDepth > this.rightDepth ? this.leftDepth + 1 : this.rightDepth + 1);
             }
         }
 
+        public override long Next
+        {
+            get { return this.right; }
+            set 
+            {
+                this.rwls.WriteLock(() =>
+                {
+                    this.right = value;
+                });
+            }
+        }
+
+        private long parent;
+        private long left;
+        private byte leftDepth;
+        private long right;
+        private byte rightDepth;
         private BinaryGather<T> gather;
 
         public AVLBlock(long id, BinaryGather<T> gather) 
@@ -53,30 +60,30 @@ namespace Saikyo.Core.Storage
             {
                 if (this.Value.CompareTo(block.Value) > 0) // left
                 {
-                    if (this.Left <= 0) // left leef is empty, so set the node as left leef
+                    if (this.left <= 0) // left leef is empty, so set the node as left leef
                     {
-                        block.Parent = this.Id;
-                        this.Left = block.Id;
+                        block.parent = this.Id;
+                        this.left = block.Id;
                         this.UpdateDepth(block.Id, 1);
                         this.changed = true;
                     }
                     else
                     {
-                        this.gather.GetBlock(this.Left).AddBlock(block);
+                        this.gather.GetBlock(this.left).AddBlock(block);
                     }
                 }
                 else // right
                 {
-                    if (this.Right <= 0) // right leef is empty, so set the node as left leef
+                    if (this.right <= 0) // right leef is empty, so set the node as left leef
                     {
-                        block.Parent = this.Id;
-                        this.Right = block.Id;
+                        block.parent = this.Id;
+                        this.right = block.Id;
                         this.UpdateDepth(block.Id, 1);
                         this.changed = true;
                     }
                     else
                     {
-                        this.gather.GetBlock(this.Right).AddBlock(block);
+                        this.gather.GetBlock(this.right).AddBlock(block);
                     }
                 }
             });
@@ -84,71 +91,71 @@ namespace Saikyo.Core.Storage
 
         public void Delete()
         {
-            if (this.Left <= 0)
+            if (this.left <= 0)
             {
-                if (this.Right <= 0) // leaf
+                if (this.right <= 0) // leaf
                 {
-                    this.gather.GetBlock(this.Parent).UpdateDepth(this.Id, 0);
-                    this.Parent = 0;
+                    this.gather.GetBlock(this.parent).UpdateDepth(this.Id, 0);
+                    this.parent = 0;
                 }
                 else // only right
                 {
-                    var parent = this.gather.GetBlock(this.Parent);
+                    var parent = this.gather.GetBlock(this.parent);
                     if (parent == null)
                     {
-                        this.gather.Root = this.Right;
+                        this.gather.Root = this.right;
                     }
                     else
                     {
-                        parent.ChangeBlock(this.Id, this.Right, this.gather.GetBlock(this.Right).Depth);
+                        parent.ChangeBlock(this.Id, this.right, this.gather.GetBlock(this.right).Depth);
                     }
                 }
             }
             else
             {
-                if (this.Right <= 0) // only left
+                if (this.right <= 0) // only left
                 {
-                    var parent = this.gather.GetBlock(this.Parent);
+                    var parent = this.gather.GetBlock(this.parent);
                     if (parent == null)
                     {
-                        this.gather.Root = this.Left;
+                        this.gather.Root = this.left;
                     }
                     else
                     {
-                        parent.ChangeBlock(this.Id, this.Left, this.gather.GetBlock(this.Left).Depth);
+                        parent.ChangeBlock(this.Id, this.left, this.gather.GetBlock(this.left).Depth);
                     }
                 }
                 else // both
                 {
                     this.changed = true;
 
-                    var replace = this.gather.GetBlock(this.Right).GetMinBlock();
+                    var replace = this.gather.GetBlock(this.right).GetMinBlock();
                     replace.Delete();
                     replace.changed = true;
 
-                    replace.Left = this.Left;
-                    replace.LeftDepth = this.LeftDepth;
-                    this.Left = 0;
-                    this.LeftDepth = 0;
-                    var left = this.gather.GetBlock(this.Left);
+                    replace.left = this.left;
+                    replace.leftDepth = this.leftDepth;
+                    this.left = 0;
+                    this.leftDepth = 0;
+                    var left = this.gather.GetBlock(this.left);
                     if (left != null)
                     {
-                        left.Parent = replace.Id;
+                        left.parent = replace.Id;
                         left.changed = true;
                     }
 
-                    replace.Right = this.Right;
-                    replace.RightDepth = this.RightDepth;
-                    this.Right = 0;
-                    this.RightDepth = 0;
-                    var right = this.gather.GetBlock(this.Right);
+                    replace.right = this.right;
+                    replace.rightDepth = this.rightDepth;
+                    this.right = 0;
+                    this.rightDepth = 0;
+                    var right = this.gather.GetBlock(this.right);
                     if (right != null)
                     {
-                        right.Parent = replace.Id;
+                        right.parent = replace.Id;
                         right.changed = true;
                     }
 
-                    var parent = this.gather.GetBlock(this.Parent);
+                    var parent = this.gather.GetBlock(this.parent);
                     if (parent == null)
                     {
                         this.gather.Root =replace.Id;
@@ -161,19 +168,27 @@ namespace Saikyo.Core.Storage
             }
         }
 
-        public void UpdateValue(T t)
+        public override void Update(object data)
         {
-            if (this.Value.CompareTo(t) == 0)
+            if (data == null)
             {
                 return;
             }
 
-            this.Delete();
-            this.Value = t;
-            this.Data = t.ToBytes();
-            this.DataSize = this.Data.Length;
-            this.changed = true;
-            this.gather.GetBlock(this.gather.Root).AddBlock(this);
+            if (data is T t)
+            {
+                if (this.Value.CompareTo(t) == 0)
+                {
+                    return;
+                }
+
+                this.Delete();
+                this.Value = t;
+                this.Data = t.ToBytes();
+                this.DataSize = this.Data.Length;
+                this.changed = true;
+                this.gather.GetBlock(this.gather.Root).AddBlock(this);
+            }
         }
 
         public List<Column> GetTree()
@@ -181,9 +196,9 @@ namespace Saikyo.Core.Storage
             return this.rwls.ReadLock(() =>
             {
                 List<Column> list;
-                if (this.Left > 0)
+                if (this.left > 0)
                 {
-                    list = this.gather.GetBlock(this.Left).GetTree();
+                    list = this.gather.GetBlock(this.left).GetTree();
                 }
                 else
                 {
@@ -194,9 +209,9 @@ namespace Saikyo.Core.Storage
                     Id = this.Id,
                     Value = this.Value
                 });
-                if (this.Right > 0)
+                if (this.right > 0)
                 {
-                    list.AddRange(this.gather.GetBlock(this.Right).GetTree());
+                    list.AddRange(this.gather.GetBlock(this.right).GetTree());
                 }
                 return list;
             });
@@ -204,9 +219,9 @@ namespace Saikyo.Core.Storage
 
         public AVLBlock<T> GetMinBlock()
         {
-            if (this.Left > 0)
+            if (this.left > 0)
             {
-                return this.gather.GetBlock(this.Left).GetMinBlock();
+                return this.gather.GetBlock(this.left).GetMinBlock();
             }
 
             return this;
@@ -219,9 +234,9 @@ namespace Saikyo.Core.Storage
                 if (this.Value.CompareTo(t) > 0)
                 {
                     List<Column> list;
-                    if (this.Left > 0)
+                    if (this.left > 0)
                     {
-                        list = this.gather.GetBlock(this.Left).Gt(t);
+                        list = this.gather.GetBlock(this.left).Gt(t);
                     }
                     else
                     {
@@ -232,17 +247,17 @@ namespace Saikyo.Core.Storage
                         Id = this.Id,
                         Value = this.Value
                     });
-                    if (this.Right > 0)
+                    if (this.right > 0)
                     {
-                        list.AddRange(this.gather.GetBlock(this.Right).GetTree());
+                        list.AddRange(this.gather.GetBlock(this.right).GetTree());
                     }
                     return list;
                 }
                 else
                 {
-                    if (this.Right > 0)
+                    if (this.right > 0)
                     {
-                        return this.gather.GetBlock(this.Right).Gt(t);
+                        return this.gather.GetBlock(this.right).Gt(t);
                     }
                 }
 
@@ -257,9 +272,9 @@ namespace Saikyo.Core.Storage
                 if (this.Value.CompareTo(t) >= 0)
                 {
                     List<Column> list;
-                    if (this.Left > 0)
+                    if (this.left > 0)
                     {
-                        list = this.gather.GetBlock(this.Left).Gte(t);
+                        list = this.gather.GetBlock(this.left).Gte(t);
                     }
                     else
                     {
@@ -270,17 +285,17 @@ namespace Saikyo.Core.Storage
                         Id = this.Id,
                         Value = this.Value
                     });
-                    if (this.Right > 0)
+                    if (this.right > 0)
                     {
-                        list.AddRange(this.gather.GetBlock(this.Right).GetTree());
+                        list.AddRange(this.gather.GetBlock(this.right).GetTree());
                     }
                     return list;
                 }
                 else
                 {
-                    if (this.Right > 0)
+                    if (this.right > 0)
                     {
-                        return this.gather.GetBlock(this.Right).Gte(t);
+                        return this.gather.GetBlock(this.right).Gte(t);
                     }
                 }
 
@@ -295,9 +310,9 @@ namespace Saikyo.Core.Storage
                 if (this.Value.CompareTo(t) < 0)
                 {
                     List<Column> list;
-                    if (this.Left > 0)
+                    if (this.left > 0)
                     {
-                        list = this.gather.GetBlock(this.Left).GetTree();
+                        list = this.gather.GetBlock(this.left).GetTree();
                     }
                     else
                     {
@@ -308,17 +323,17 @@ namespace Saikyo.Core.Storage
                         Id = this.Id,
                         Value = this.Value
                     });
-                    if (this.Right > 0)
+                    if (this.right > 0)
                     {
-                        list.AddRange(this.gather.GetBlock(this.Right).Lt(t));
+                        list.AddRange(this.gather.GetBlock(this.right).Lt(t));
                     }
                     return list;
                 }
                 else
                 {
-                    if (this.Left > 0)
+                    if (this.left > 0)
                     {
-                        return this.gather.GetBlock(this.Left).Lt(t);
+                        return this.gather.GetBlock(this.left).Lt(t);
                     }
                 }
 
@@ -333,9 +348,9 @@ namespace Saikyo.Core.Storage
                 if (this.Value.CompareTo(t) <= 0)
                 {
                     List<Column> list;
-                    if (this.Left > 0)
+                    if (this.left > 0)
                     {
-                        list = this.gather.GetBlock(this.Left).GetTree();
+                        list = this.gather.GetBlock(this.left).GetTree();
                     }
                     else
                     {
@@ -346,17 +361,17 @@ namespace Saikyo.Core.Storage
                         Id = this.Id,
                         Value = this.Value
                     });
-                    if (this.Right > 0)
+                    if (this.right > 0)
                     {
-                        list.AddRange(this.gather.GetBlock(this.Right).Lte(t));
+                        list.AddRange(this.gather.GetBlock(this.right).Lte(t));
                     }
                     return list;
                 }
                 else
                 {
-                    if (this.Left > 0)
+                    if (this.left > 0)
                     {
-                        return this.gather.GetBlock(this.Left).Lte(t);
+                        return this.gather.GetBlock(this.left).Lte(t);
                     }
                 }
 
@@ -370,9 +385,9 @@ namespace Saikyo.Core.Storage
             {
                 if (this.Value.CompareTo(t) > 0)
                 {
-                    if (this.Left > 0)
+                    if (this.left > 0)
                     {
-                        return this.gather.GetBlock(this.Left).Eq(t);
+                        return this.gather.GetBlock(this.left).Eq(t);
                     }
                 }
                 else
@@ -386,9 +401,9 @@ namespace Saikyo.Core.Storage
                             Value = this.Value
                         });
                     }
-                    if (this.Right > 0)
+                    if (this.right > 0)
                     {
-                        list.AddRange(this.gather.GetBlock(this.Right).Eq(t));
+                        list.AddRange(this.gather.GetBlock(this.right).Eq(t));
                     }
                     return list;
                 }
@@ -407,57 +422,55 @@ namespace Saikyo.Core.Storage
             base.Dispose();
 
             var startPosition = this.Id * this.blockSize + this.gatherHeaderSize + Const.BaseBlockHeaderSize;
-            this.stream.Write(startPosition, BitConverter.GetBytes(this.Parent));
-            this.stream.Write(startPosition + 8, BitConverter.GetBytes(this.Left));
-            this.stream.Write(startPosition + 16, new byte[1] { this.LeftDepth });
-            this.stream.Write(startPosition + 17, BitConverter.GetBytes(this.Right));
-            this.stream.Write(startPosition + 25, new byte[1] { this.RightDepth });
+            this.stream.Write(startPosition, BitConverter.GetBytes(this.parent));
+            this.stream.Write(startPosition + 8, BitConverter.GetBytes(this.left));
+            this.stream.Write(startPosition + 16, new byte[1] { this.leftDepth });
+            this.stream.Write(startPosition + 17, new byte[1] { this.rightDepth });
         }
 
         public override string ToString()
         {
             var str = this.Value.ToString();
-            if (this.Left > 0)
+            if (this.left > 0)
             {
-                str = $"({this.gather.GetBlock(this.Left)})-{str}";
+                str = $"({this.gather.GetBlock(this.left)})-{str}";
             }
-            if (this.Right > 0)
+            if (this.right > 0)
             {
-                str = $"{str}-({this.gather.GetBlock(this.Right)})";
+                str = $"{str}-({this.gather.GetBlock(this.right)})";
             }
             return str;
         }
 
-        protected override void InitData()
+        protected override void InitHeader()
         {
             if (this.State != 1)
             {
                 var startPosition = this.Id * blockSize + gatherHeaderSize + Const.BaseBlockHeaderSize;
-                this.Parent = this.stream.ReadAsLong(startPosition);
-                this.Left = this.stream.ReadAsLong(startPosition + 8);
-                this.LeftDepth = this.stream.ReadAsByte(startPosition + 16);
-                this.Right = this.stream.ReadAsLong(startPosition + 17);
-                this.RightDepth = this.stream.ReadAsByte(startPosition + 25);
+                this.parent = this.stream.ReadAsLong(startPosition);
+                this.left = this.stream.ReadAsLong(startPosition + 8);
+                this.leftDepth = this.stream.ReadAsByte(startPosition + 16);
+                this.rightDepth = this.stream.ReadAsByte(startPosition + 17);
             }
             this.HeaderSize = Const.AVLBlockHeaderSize;
         }
 
         private void UpdateDepth(long id, byte depth, long path = 0)
         {
-            if (this.Left == id)
+            if (this.left == id)
             {
-                if (this.LeftDepth == depth)
+                if (this.leftDepth == depth)
                 {
                     return;
                 }
 
-                if (depth > this.LeftDepth) // add
+                if (depth > this.leftDepth) // add
                 {
-                    this.LeftDepth = depth;
+                    this.leftDepth = depth;
                     path *= 2; // << 1 + 0
                     this.changed = true;
 
-                    if (this.LeftDepth - this.RightDepth > 1)
+                    if (this.leftDepth - this.rightDepth > 1)
                     {
                         var mode = path % 4;
                         if (mode == 0) // 00 LL
@@ -466,23 +479,23 @@ namespace Saikyo.Core.Storage
                         }
                         else if (mode == 2) // 10 LR
                         {
-                            this.gather.GetBlock(this.Left).RotateRR();
+                            this.gather.GetBlock(this.left).RotateRR(false);
                             this.RotateLL();
                         }
                     }
                 }
                 else // delete
                 {
-                    this.LeftDepth = depth;
+                    this.leftDepth = depth;
                     if (depth == 0)
                     {
-                        this.Left = 0;
+                        this.left = 0;
                     }
                     this.changed = true;
 
-                    if (this.RightDepth - this.LeftDepth > 1)
+                    if (this.rightDepth - this.leftDepth > 1)
                     {
-                        var right = this.gather.GetBlock(this.Right);
+                        var right = this.gather.GetBlock(this.right);
                         var p = right.GetRightLongestPath(1);
                         while (p >= 4)
                         {
@@ -494,31 +507,31 @@ namespace Saikyo.Core.Storage
                         }
                         else if (p == 2) // 10 RL
                         {
-                            right.RotateLL();
+                            right.RotateLL(false);
                             this.RotateRR();
                         }
                     }
                 }
             }
-            else if (this.Right == id)
+            else if (this.right == id)
             {
-                if (this.RightDepth == depth)
+                if (this.rightDepth == depth)
                 {
                     return;
                 }
 
-                if (depth > this.RightDepth) // add
+                if (depth > this.rightDepth) // add
                 {
-                    this.RightDepth = depth;
+                    this.rightDepth = depth;
                     path = path * 2 + 1; // << 1 + 1
                     this.changed = true;
 
-                    if (this.RightDepth - this.LeftDepth > 1)
+                    if (this.rightDepth - this.leftDepth > 1)
                     {
                         var mode = path % 4;
                         if (mode == 1) // 01 RL
                         {
-                            this.gather.GetBlock(this.Right).RotateLL();
+                            this.gather.GetBlock(this.right).RotateLL(false);
                             this.RotateRR();
                         }
                         else if (mode == 3) // 11 RR
@@ -529,16 +542,16 @@ namespace Saikyo.Core.Storage
                 }
                 else // delete
                 {
-                    this.RightDepth = depth;
+                    this.rightDepth = depth;
                     if (depth == 0)
                     {
-                        this.Right = 0;
+                        this.right = 0;
                     }
                     this.changed = true;
 
-                    if (this.LeftDepth - this.RightDepth > 1)
+                    if (this.leftDepth - this.rightDepth > 1)
                     {
-                        var left = this.gather.GetBlock(this.Left);
+                        var left = this.gather.GetBlock(this.left);
                         var p = left.GetRightLongestPath(0);
                         while (p >= 4)
                         {
@@ -546,7 +559,7 @@ namespace Saikyo.Core.Storage
                         }
                         if (p == 1) // 01 LR
                         {
-                            left.RotateRR();
+                            left.RotateRR(false);
                             this.RotateLL();
                         }
                         else if (p == 0) // 00 LL
@@ -556,121 +569,124 @@ namespace Saikyo.Core.Storage
                     }
                 }
             }
-            if (this.Parent > 0)
+            if (this.parent > 0)
             {
-                this.gather.GetBlock(this.Parent).UpdateDepth(this.Id, this.Depth, path);
+                this.gather.GetBlock(this.parent).UpdateDepth(this.Id, this.Depth, path);
             }
         }
 
-        private void ChangeBlock(long oldId, long newId, byte depth)
+        private void ChangeBlock(long oldId, long newId, byte depth, bool updateParentDepth = true)
         {
-            if (this.Left == oldId)
+            if (this.left == oldId)
             {
-                this.Left = newId;
-                this.LeftDepth = depth;
+                this.left = newId;
+                this.leftDepth = depth;
                 this.changed = true;
             }
-            else if (this.Right == oldId)
+            else if (this.right == oldId)
             {
-                this.Right = newId;
-                this.RightDepth = depth;
+                this.right = newId;
+                this.rightDepth = depth;
                 this.changed = true;
             }
-            this.gather.GetBlock(this.Parent)?.UpdateDepth(this.Id, this.Depth);
+            if (updateParentDepth)
+            {
+                this.gather.GetBlock(this.parent)?.UpdateDepth(this.Id, this.Depth);
+            }
         }
 
-        private void RotateLL()
+        private void RotateLL(bool updateParentDepth = true)
         {
             this.changed = true;
-            var parent = this.gather.GetBlock(this.Parent);
-            var left = this.gather.GetBlock(this.Left);
-            var lr = this.gather.GetBlock(left.Right);
+            var parent = this.gather.GetBlock(this.parent);
+            var left = this.gather.GetBlock(this.left);
+            var lr = this.gather.GetBlock(left.right);
             if (lr != null)
             {
-                lr.Parent = this.Id;
+                lr.parent = this.Id;
                 lr.changed = true;
-                this.Left = lr.Id;
-                this.LeftDepth = lr.Depth;
+                this.left = lr.Id;
+                this.leftDepth = lr.Depth;
             }
             else
             {
-                this.Left = 0;
-                this.LeftDepth = 0;
+                this.left = 0;
+                this.leftDepth = 0;
             }
-            this.Parent = left.Id;
-            left.Right = this.Id;
-            left.RightDepth = this.Depth;
+            this.parent = left.Id;
+            left.right = this.Id;
+            left.rightDepth = this.Depth;
             left.changed = true;
 
             if (parent != null)
             {
-                left.Parent = parent.Id;
-                parent.ChangeBlock(this.Id, left.Id, left.Depth);
+                left.parent = parent.Id;
+                parent.ChangeBlock(this.Id, left.Id, left.Depth, updateParentDepth);
             }
             else
             {
-                left.Parent = 0;
+                left.parent = 0;
                 this.gather.Root = left.Id;
             }
         }
 
-        private void RotateRR()
+        private void RotateRR(bool updateParentDepth = true)
         {
             this.changed = true;
-            var parent = this.gather.GetBlock(this.Parent);
-            var right = this.gather.GetBlock(this.Right);
-            var rl = this.gather.GetBlock(right.Left);
+            var parent = this.gather.GetBlock(this.parent);
+            var right = this.gather.GetBlock(this.right);
+            var rl = this.gather.GetBlock(right.left);
             if (rl != null)
             {
-                rl.Parent = this.Id;
+                rl.parent = this.Id;
                 rl.changed = true;
-                this.Right = rl.Id;
-                this.RightDepth = rl.Depth;
+                this.right = rl.Id;
+                this.rightDepth = rl.Depth;
             }
             else
             {
-                this.Right = 0;
-                this.RightDepth = 0;
+                this.right = 0;
+                this.rightDepth = 0;
             }
-            this.Parent = right.Id;
-            right.Left = this.Id;
-            right.LeftDepth = this.Depth;
+            this.parent = right.Id;
+            right.left = this.Id;
+            right.leftDepth = this.Depth;
             right.changed = true;
 
             if (parent != null)
             {
-                right.Parent = parent.Id;
-                parent.ChangeBlock(this.Id, right.Id, right.Depth);
+                right.parent = parent.Id;
+                parent.ChangeBlock(this.Id, right.Id, right.Depth, updateParentDepth);
             }
             else
             {
-                right.Parent = 0;
+                right.parent = 0;
                 this.gather.Root = right.Id;
             }
         }
 
         private long GetRightLongestPath(long path)
         {
-            if (this.Right > 0)
+            if (this.right > 0)
             {
-                return this.gather.GetBlock(this.Right).GetRightLongestPath(path * 2 + 1);
+                return this.gather.GetBlock(this.right).GetRightLongestPath(path * 2 + 1);
             }
-            if (this.Left > 0)
+            if (this.left > 0)
             {
-                return this.gather.GetBlock(this.Left).GetRightLongestPath(path * 2);
+                return this.gather.GetBlock(this.left).GetRightLongestPath(path * 2);
             }
             return path;
         }
 
         private long GetLeftLongestPath(long path)
         {
-            if (this.Left > 0)
+            if (this.left > 0)
             {
-                return this.gather.GetBlock(this.Left).GetLeftLongestPath(path * 2 + 1);
+                return this.gather.GetBlock(this.left).GetLeftLongestPath(path * 2 + 1);
             }
-            if (this.Right > 0)
+            if (this.right > 0)
             {
-                return this.gather.GetBlock(this.Right).GetLeftLongestPath(path * 2);
+                return this.gather.GetBlock(this.right).GetLeftLongestPath(path * 2);
             }
             return path;
         }

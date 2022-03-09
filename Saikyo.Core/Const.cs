@@ -6,8 +6,8 @@ namespace Saikyo.Core
 {
     internal static class Const
     {
-        public const int BaseBlockHeaderSize = 5;
-        public static readonly int AVLBlockHeaderSize = BaseBlockHeaderSize + 26;
-        public static readonly int DataBlockHeaderSize = BaseBlockHeaderSize + 8;
+        public const int BaseBlockHeaderSize = 13;
+        public const int DataBlockHeaderSize = BaseBlockHeaderSize;
+        public static readonly int AVLBlockHeaderSize = BaseBlockHeaderSize + 18;
     }
 }

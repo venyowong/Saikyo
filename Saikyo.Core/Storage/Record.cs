@@ -11,11 +11,7 @@ namespace Saikyo.Core.Storage
     {
         public long Id { get; private set; }
 
-        public string Database { get; private set; }
-
-        public string Collection { get; private set; }
-
-        public List<DataBlock> Blocks { get; private set; } = new List<DataBlock>();
+        public List<IBlock> Blocks { get; private set; } = new List<IBlock>();
 
         /// <summary>
         /// 0 use first block state 1 deleted
@@ -23,50 +19,44 @@ namespace Saikyo.Core.Storage
         private byte state = 0;
         private int blockSize;
         private ReaderWriterLockSlim rwls = new ReaderWriterLockSlim();
-        private IBlockDeleter blockDeleter;
+        private IGather gather;
         private Stream stream;
         private int gatherHeaderSize;
 
-        public Record(string database, string collection, int gatherHeaderSize, Stream stream, long id, int blockSize,
-            IBlockDeleter blockDeleter, bool create = false)
+        public Record(IGather gather, long id, bool create = false)
         {
-            this.Database = database;
-            this.Collection = collection;
             this.Id = id;
-            this.blockSize = blockSize;
-            this.stream = stream;
-            this.blockDeleter = blockDeleter;
-            this.gatherHeaderSize = gatherHeaderSize;
+            this.blockSize = gather.BlockSize;
+            this.stream = gather.Stream;
+            this.gather = gather;
+            this.gatherHeaderSize = gather.HeaderSize;
             long blockId = id;
             do
             {
-                var block = new DataBlock(stream, gatherHeaderSize, blockId, blockSize, create);
+                var block = this.gather.GetBlock(blockId, create);
                 if (!this.Blocks.Any() && block.State == 1)
                 {
                     this.state = 1;
                     break;
                 }
                 this.Blocks.Add(block);
-                blockId = block.NextBlock;
+                blockId = block.Next;
             }
             while (blockId > 0);
         }
 
-        public Record(string database, string collection, int gatherHeaderSize, Stream stream, int blockSize, byte[] bytes,
-            IBlockDeleter blockDeleter, params long[] ids)
+        public Record(IGather gather, byte[] bytes, params long[] ids)
         {
             if (ids.IsNullOrEmpty())
             {
                 throw new ArgumentOutOfRangeException("ids cannot be null or empty");
             }
 
-            this.Database = database;
-            this.Collection = collection;
             this.Id = ids[0];
-            this.blockSize = blockSize;
-            this.blockDeleter = blockDeleter;
-            this.stream = stream;
-            this.gatherHeaderSize = gatherHeaderSize;
+            this.blockSize = gather.BlockSize;
+            this.gather = gather;
+            this.stream = gather.Stream;
+            this.gatherHeaderSize = gather.HeaderSize;
             int srcOffset = 0;
             for (var i = 0; i < ids.Length; i++)
             {
@@ -79,11 +69,11 @@ namespace Saikyo.Core.Storage
                 Buffer.BlockCopy(bytes, srcOffset, data, 0, size);
                 if (i < ids.Length - 1)
                 {
-                    this.Blocks.Add(new DataBlock(stream, gatherHeaderSize, ids[i], blockSize, data, ids[i + 1]));
+                    this.Blocks.Add(this.gather.GetBlock(ids[i], data, ids[i + 1]));
                 }
                 else
                 {
-                    this.Blocks.Add(new DataBlock(stream, gatherHeaderSize, ids[i], blockSize, data));
+                    this.Blocks.Add(this.gather.GetBlock(ids[i], data));
                 }
                 srcOffset += size;
             }
@@ -125,7 +115,7 @@ namespace Saikyo.Core.Storage
                 var size = Math.Min(this.blockSize - Const.DataBlockHeaderSize, bytes.Length - srcOffset);
                 if (size <= 0)
                 {
-                    this.blockDeleter.Delete(b.Id);
+                    this.gather.Delete(b.Id);
                     continue;
                 }
 
@@ -139,7 +129,7 @@ namespace Saikyo.Core.Storage
             {
                 if (this.Blocks.Any())
                 {
-                    this.Blocks[this.Blocks.Count - 1].UpdateNextBlock(ids[0]);
+                    this.Blocks[this.Blocks.Count - 1].Next = ids[0];
                 }
 
                 for (var i = 0; i < ids.Length; i++)
@@ -153,28 +143,28 @@ namespace Saikyo.Core.Storage
                     Buffer.BlockCopy(bytes, srcOffset, data, 0, size);
                     if (i < ids.Length - 1)
                     {
-                        this.Blocks.Add(new DataBlock(this.stream, this.gatherHeaderSize, ids[i], this.blockSize, data, ids[i + 1]));
+                        this.Blocks.Add(this.gather.GetBlock(ids[i], data, ids[i + 1]));
                     }
                     else
                     {
-                        this.Blocks.Add(new DataBlock(this.stream, this.gatherHeaderSize, ids[i], blockSize, data));
+                        this.Blocks.Add(this.gather.GetBlock(ids[i], data));
                     }
                     srcOffset += size;
                 }
             }
         }
 
-        public void PushBlock(DataBlock block)
+        public void PushBlock(IBlock block)
         {
             this.rwls.WriteLock(() =>
             {
                 var lastBlock = this.Blocks[this.Blocks.Count - 1];
-                lastBlock.UpdateNextBlock(block.Id);
+                lastBlock.Next = block.Id;
                 this.Blocks.Add(block);
             });
         }
 
-        public DataBlock PopBlock()
+        public IBlock PopBlock(long id = 0)
         {
             return this.rwls.WriteLock(() =>
             {
@@ -183,10 +173,36 @@ namespace Saikyo.Core.Storage
                     return null;
                 }
 
-                this.Blocks[this.Blocks.Count - 2].UpdateNextBlock(0); // blocks[-2] will be tail
-                var block = this.Blocks[this.Blocks.Count - 1];
-                this.Blocks.Remove(block);
-                return block;
+                if (id == 0)
+                {
+                    this.Blocks[this.Blocks.Count - 2].Next = 0; // blocks[-2] will be tail
+                    var block = this.Blocks[this.Blocks.Count - 1];
+                    this.Blocks.Remove(block);
+                    return block;
+                }
+                else
+                {
+                    for (int i = 1; i < this.Blocks.Count; i++)
+                    {
+                        var block = this.Blocks[i];
+                        if (block.Id != id)
+                        {
+                            continue;
+                        }
+
+                        if (i + 1 < this.Blocks.Count) // if this block is not tail
+                        {
+                            this.Blocks[i - 1].Next = this.Blocks[i + 1].Id; // [i - 1] -> [i + 1], remove this block from the linked list
+                        }
+                        else
+                        {
+                            this.Blocks[i - 1].Next = 0; // [i - 1] will be tail
+                        }
+                        this.Blocks.Remove(block);
+                        return block;
+                    }
+                    return null;
+                }
             });
         }
 

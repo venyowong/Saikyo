@@ -6,7 +6,7 @@ using System.Collections.Generic;
 
 namespace Saikyo.Core.Storage
 {
-    internal class BinaryGather<T> : BaseGather<T>, IColumnGetter where T : IComparable<T>
+    internal class BinaryGather<T> : BaseGather<T>, IColumnGetter, IAVLTree where T : IComparable<T>
     {
         public long Root { get; set; }
 
@@ -17,11 +17,42 @@ namespace Saikyo.Core.Storage
         {
         }
 
-        public override long AddData(T t)
+        public override IBlock GetBlock(long id, bool create = false) => new AVLBlock<T>(id, this);
+
+        public override IBlock GetBlock(long id, object obj, long next = 0)
+        {
+            if (obj == null)
+            {
+                return null;
+            }
+
+            if (obj is T t)
+            {
+                return new AVLBlock<T>(id, t, this);
+            }
+            else
+            {
+                Log.Warning($"You can't use data({obj.GetType()}) to init AVLBlock");
+                return null;
+            }
+        }
+
+        public override long AddData(T t, long id = 0)
         {
             return this.rwls.WriteLock(() =>
             {
-                var id = this.GetFreeBlockId();
+                if (id == 0)
+                {
+                    id = this.GetFreeBlockId();
+                }
+                else
+                {
+                    if (!this.TryUseBlockId(id))
+                    {
+                        Log.Warning($"{this.name}.gather cannot use {id} block");
+                        return 0;
+                    }
+                }
                 var block = new AVLBlock<T>(id, t, this);
                 this.blocks.TryAdd(id, block);
 
@@ -50,7 +81,7 @@ namespace Saikyo.Core.Storage
             return true;
         }
 
-        public override void Update(long id, T t) => this.GetBlock(id).UpdateValue(t);
+        public override void Update(long id, T t) => this.GetBlock(id).Update(t);
 
         public AVLBlock<T> GetBlock(long id)
         {
@@ -84,7 +115,7 @@ namespace Saikyo.Core.Storage
             };
         }
 
-        public List<Column> GetAllBlocks()
+        public List<Column> GetAllColumns()
         {
             if (this.Root <= 0)
             {
@@ -94,54 +125,89 @@ namespace Saikyo.Core.Storage
             return this.GetBlock(this.Root).GetTree();
         }
 
-        public List<Column> Gt(T t)
+        public List<Column> Gt(object obj)
         {
-            if (this.Root <= 0)
+            if (this.Root <= 0 || obj == null)
             {
                 return new List<Column>();
             }
 
-            return this.GetBlock(this.Root).Gt(t);
+            if (obj is T t)
+            {
+                return this.GetBlock(this.Root).Gt(t);
+            }
+            else
+            {
+                return new List<Column>();
+            }
         }
 
-        public List<Column> Gte(T t)
+        public List<Column> Gte(object obj)
         {
-            if (this.Root <= 0)
+            if (this.Root <= 0 || obj == null)
             {
                 return new List<Column>();
             }
 
-            return this.GetBlock(this.Root).Gte(t);
+            if (obj is T t)
+            {
+                return this.GetBlock(this.Root).Gte(t);
+            }
+            else
+            {
+                return new List<Column>();
+            }
         }
 
-        public List<Column> Lt(T t)
+        public List<Column> Lt(object obj)
         {
-            if (this.Root <= 0)
+            if (this.Root <= 0 || obj == null)
             {
                 return new List<Column>();
             }
 
-            return this.GetBlock(this.Root).Lt(t);
+            if (obj is T t)
+            {
+                return this.GetBlock(this.Root).Lt(t);
+            }
+            else
+            {
+                return new List<Column>();
+            }
         }
 
-        public List<Column> Lte(T t)
+        public List<Column> Lte(object obj)
         {
-            if (this.Root <= 0)
+            if (this.Root <= 0 || obj == null)
             {
                 return new List<Column>();
             }
 
-            return this.GetBlock(this.Root).Lte(t);
+            if (obj is T t)
+            {
+                return this.GetBlock(this.Root).Lte(t);
+            }
+            else
+            {
+                return new List<Column>();
+            }
         }
 
-        public List<Column> Eq(T t)
+        public List<Column> Eq(object obj)
         {
-            if (this.Root <= 0)
+            if (this.Root <= 0 || obj == null)
             {
                 return new List<Column>();
             }
 
-            return this.GetBlock(this.Root).Eq(t);
+            if (obj is T t)
+            {
+                return this.GetBlock(this.Root).Eq(t);
+            }
+            else
+            {
+                return new List<Column>();
+            }
         }
 
         public override void Dispose()

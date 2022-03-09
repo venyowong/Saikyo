@@ -12,7 +12,10 @@ namespace Saikyo.Core
 
         public static void Init()
         {
-            Kernel = new Kernel();
+            if (Kernel == null)
+            {
+                Kernel = new Kernel();
+            }
             if (Config == null)
             {
                 Config = new Configuration();

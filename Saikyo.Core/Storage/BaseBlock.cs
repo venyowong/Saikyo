@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace Saikyo.Core.Storage
 {
-    internal abstract class BaseBlock : IDisposable
+    internal abstract class BaseBlock : IBlock
     {
         public long Id { get; protected set; }
 
@@ -18,8 +18,10 @@ namespace Saikyo.Core.Storage
         /// </summary>
         public byte State { get; protected set; }
 
-        public byte[] Data { get; protected set; }
+        public abstract long Next { get; set; }
 
+        public byte[] Data { get; protected set; }
+        
         protected int blockSize;
         protected int gatherHeaderSize;
         protected Stream stream;
@@ -38,7 +40,8 @@ namespace Saikyo.Core.Storage
                 var startPosition = id * blockSize + gatherHeaderSize;
                 this.DataSize = this.stream.ReadAsInt32(startPosition);
                 this.State = this.stream.ReadAsByte(startPosition + 4);
-                this.InitData();
+                this.Next = this.stream.ReadAsLong(startPosition + 5);
+                this.InitHeader();
                 this.Data = new byte[this.DataSize];
                 if (this.State != 1 && this.DataSize > 0)
                 {
@@ -50,11 +53,11 @@ namespace Saikyo.Core.Storage
             {
                 this.changed = true;
                 this.Data = new byte[0];
-                this.InitData();
+                this.InitHeader();
             }
         }
 
-        public BaseBlock(Stream stream, int gatherHeaderSize, long id, int blockSize, byte[] bytes)
+        public BaseBlock(Stream stream, int gatherHeaderSize, long id, int blockSize, byte[] bytes, long next = 0)
         {
             this.stream = stream;
             this.Id = id;
@@ -63,7 +66,10 @@ namespace Saikyo.Core.Storage
             this.Data = bytes;
             this.changed = true;
             this.gatherHeaderSize = gatherHeaderSize;
+            this.Next = next;
         }
+
+        public abstract void Update(object data);
 
         public void MarkAsDeleted()
         {
@@ -81,6 +87,7 @@ namespace Saikyo.Core.Storage
             var startPosition = this.Id * blockSize + gatherHeaderSize;
             this.stream.Write(startPosition, BitConverter.GetBytes(this.DataSize));
             this.stream.Write(startPosition + 4, new byte[1] { this.State });
+            this.stream.Write(startPosition + 5, BitConverter.GetBytes(this.Next));
 
             if (this.State != 1)
             {
@@ -93,6 +100,6 @@ namespace Saikyo.Core.Storage
             }
         }
 
-        protected abstract void InitData();
+        protected abstract void InitHeader();
     }
 }

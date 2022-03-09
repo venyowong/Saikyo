@@ -1,4 +1,5 @@
 ﻿using Saikyo.Core.Extensions;
+using Serilog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -19,7 +20,27 @@ namespace Saikyo.Core.Storage
             this.multipleBlocks = multipleBlocks;
         }
 
-        public override long AddData(byte[] bytes)
+        public override IBlock GetBlock(long id, bool create = false) => new DataBlock(this.Stream, this.HeaderSize, id, this.BlockSize, create);
+
+        public override IBlock GetBlock(long id, object obj, long next = 0)
+        {
+            if (obj == null)
+            {
+                return null;
+            }
+
+            if (obj is byte[] bytes)
+            {
+                return new DataBlock(this.Stream, this.HeaderSize, id, this.BlockSize, bytes, next);
+            }
+            else
+            {
+                Log.Warning($"You can't use data({obj.GetType()}) to init DataBlock");
+                return null;
+            }
+        }
+
+        public override long AddData(byte[] bytes, long id = 0)
         {
             if (bytes.IsNullOrEmpty())
             {
@@ -35,12 +56,25 @@ namespace Saikyo.Core.Storage
             return this.rwls.WriteLock(() =>
             {
                 var ids = new List<long>();
-                for (var i = 0; i < blockCount; i++)
+                if (!this.multipleBlocks && id > 0L)
                 {
-                    ids.Add(this.GetFreeBlockId());
+                    if (!this.TryUseBlockId(id))
+                    {
+                        Log.Warning($"{this.name}.gather cannot use {id} block");
+                        return 0;
+                    }
+
+                    ids.Add(id);
+                }
+                else
+                {
+                    for (var i = 0; i < blockCount; i++)
+                    {
+                        ids.Add(this.GetFreeBlockId());
+                    }
                 }
 
-                var record = new Record(this.Database, this.Collection, this.HeaderSize, this.Stream, this.BlockSize, bytes, this, ids.ToArray());
+                var record = new Record(this, bytes, ids.ToArray());
                 this.records.TryAdd(record.Id, record);
                 return record.Id;
             });
@@ -50,7 +84,7 @@ namespace Saikyo.Core.Storage
         {
             if (!this.records.TryRemove(id, out var record))
             {
-                record = new Record(this.Database, this.Collection, this.HeaderSize, this.Stream, id, this.BlockSize, this);
+                record = new Record(this, id);
             }
 
             foreach (var block in record.Blocks)
@@ -78,7 +112,7 @@ namespace Saikyo.Core.Storage
                 }
                 if (record == null)
                 {
-                    record = new Record(this.Database, this.Collection, this.HeaderSize, this.Stream, id, this.BlockSize, this);
+                    record = new Record(this, id);
                 }
 
                 var ids = new List<long>();
@@ -104,7 +138,7 @@ namespace Saikyo.Core.Storage
                     return this.records[id];
                 }
 
-                var record = new Record(this.Database, this.Collection, this.HeaderSize, this.Stream, id, this.BlockSize, this);
+                var record = new Record(this, id);
                 this.records.TryAdd(id, record);
                 return record;
             });

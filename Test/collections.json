@@ -1,0 +1,93 @@
+{
+  "feed": {
+    "id": {
+      "type": "string",
+      "size": 100,
+      "key": true
+    },
+    "url": {
+      "type": "string",
+      "size": 400
+    },
+    "title": {
+      "type": "string",
+      "size": 400
+    },
+    "image": {
+      "type": "string",
+      "size": 400
+    },
+    "label": {
+      "type": "string",
+      "size": 100
+    },
+    "create_time": {
+      "type": "datetime"
+    },
+    "update_time": {
+      "type": "datetime"
+    },
+    "description": {
+      "type": "string"
+    }
+  },
+  "article": {
+    "id": {
+      "type": "string",
+      "size": 100,
+      "key": true
+    },
+    "url": {
+      "type": "string",
+      "size": 400
+    },
+    "feed_id": {
+      "type": "string",
+      "size": 50
+    },
+    "title": {
+      "type": "string",
+      "size": 400
+    },
+    "summary": {
+      "type": "string",
+      "size": 1500
+    },
+    "published": {
+      "type": "datetime"
+    },
+    "updated": {
+      "type": "datetime"
+    },
+    "keyword": {
+      "type": "string",
+      "size": 600
+    },
+    "content": {
+      "type": "string",
+      "size": 1500
+    },
+    "contributors": {
+      "type": "string",
+      "size": 200
+    },
+    "authors": {
+      "type": "string",
+      "size": 200
+    },
+    "copyright": {
+      "type": "string",
+      "size": 200
+    },
+    "create_time": {
+      "type": "datetime"
+    },
+    "update_time": {
+      "type": "datetime"
+    },
+    "image": {
+      "type": "string",
+      "size": 400
+    }
+  }
+}

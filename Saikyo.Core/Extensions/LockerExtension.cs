@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Serilog;
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -11,14 +12,20 @@ namespace Saikyo.Core.Extensions
         {
             try
             {
-                rwls.TryEnterWriteLock(Instance.Config.ReaderWriterLockTimeout);
-                try
+                if (rwls.TryEnterWriteLock(Instance.Config.ReaderWriterLockTimeout))
                 {
-                    action();
+                    try
+                    {
+                        action();
+                    }
+                    finally
+                    {
+                        rwls.ExitWriteLock();
+                    }
                 }
-                finally
+                else
                 {
-                    rwls.ExitWriteLock();
+                    Log.Warning("failed to enter write lock");
                 }
             }
             catch (ApplicationException)
@@ -30,14 +37,21 @@ namespace Saikyo.Core.Extensions
         {
             try
             {
-                rwls.TryEnterWriteLock(Instance.Config.ReaderWriterLockTimeout);
-                try
+                if (rwls.TryEnterWriteLock(Instance.Config.ReaderWriterLockTimeout))
                 {
-                    return func();
+                    try
+                    {
+                        return func();
+                    }
+                    finally
+                    {
+                        rwls.ExitWriteLock();
+                    }
                 }
-                finally
+                else
                 {
-                    rwls.ExitWriteLock();
+                    Log.Warning("failed to enter write lock");
+                    return default;
                 }
             }
             catch (ApplicationException)
@@ -50,14 +64,21 @@ namespace Saikyo.Core.Extensions
         {
             try
             {
-                rwls.TryEnterReadLock(Instance.Config.ReaderWriterLockTimeout);
-                try
+                if (rwls.TryEnterReadLock(Instance.Config.ReaderWriterLockTimeout))
                 {
-                    return func();
+                    try
+                    {
+                        return func();
+                    }
+                    finally
+                    {
+                        rwls.ExitReadLock();
+                    }
                 }
-                finally
+                else
                 {
-                    rwls.ExitReadLock();
+                    Log.Warning("failed to enter read lock");
+                    return default;
                 }
             }
             catch (ApplicationException)

@@ -1,16 +1,23 @@
 ﻿using Saikyo.Core.Extensions;
 using Serilog;
 using System;
+using System.IO;
 using System.Text;
 using System.Threading;
 
 namespace Saikyo.Core.Storage
 {
-    internal class TextGather : IInserter<string>, IDisposable, IColumnGetter, IBlockDeleter, IDestroyer, IUpdater<string>
+    internal class TextGather : IGather, IColumnGetter
     {
         public string Database { get; private set; }
 
         public string Collection { get; private set; }
+
+        public int HeaderSize => this.valueGather.HeaderSize;
+
+        public Stream Stream => this.valueGather.Stream;
+
+        public int BlockSize => this.valueGather.BlockSize;
 
         private string name;
         private DataGather keyGather;
@@ -26,17 +33,24 @@ namespace Saikyo.Core.Storage
             this.valueGather = new DataGather(database, collection, $"{name}_text", Instance.Config.MaxTextBlockSize);
         }
 
-        public long AddData(string t)
+        public long AddData(object obj, long id = 0)
         {
-            return this.rwls.WriteLock(() =>
+            if (obj is string str)
             {
-                var valueId = 0L;
-                if (!string.IsNullOrWhiteSpace(t))
+                return this.rwls.WriteLock(() =>
                 {
-                    valueId = this.valueGather.AddData(Encoding.UTF8.GetBytes(t));
-                }
-                return this.keyGather.AddData(BitConverter.GetBytes(valueId));
-            });
+                    var valueId = 0L;
+                    if (!string.IsNullOrWhiteSpace(str))
+                    {
+                        valueId = this.valueGather.AddData(Encoding.UTF8.GetBytes(str));
+                    }
+                    return this.keyGather.AddData(BitConverter.GetBytes(valueId), id);
+                });
+            }
+            else
+            {
+                return 0;
+            }
         }
 
         public bool Delete(long id)
@@ -65,7 +79,7 @@ namespace Saikyo.Core.Storage
             return this.keyGather.Delete(id);
         }
 
-        public void Update(long id, string str)
+        public void Update(long id, object obj)
         {
             var key = this.keyGather.GetRecord(id);
             if (key == null)
@@ -85,7 +99,20 @@ namespace Saikyo.Core.Storage
                 return;
             }
 
-            this.valueGather.Update(id, Encoding.UTF8.GetBytes(str));
+            if (obj is string str)
+            {
+                this.valueGather.Update(id, Encoding.UTF8.GetBytes(str));
+            }
+        }
+
+        public IBlock GetBlock(long id, bool create = false)
+        {
+            throw new NotImplementedException();
+        }
+
+        public IBlock GetBlock(long id, object obj, long next = 0)
+        {
+            throw new NotImplementedException();
         }
 
         public Column GetColumn(long id)
