@@ -59,6 +59,19 @@ namespace Saikyo.Core.Extensions
             return bytes[0];
         }
 
+        public static byte[] Read(this Stream stream, long position, int size)
+        {
+            if (stream == null || position < 0 || size <= 0)
+            {
+                return new byte[0];
+            }
+
+            stream.Position = position;
+            var bytes = new byte[size];
+            stream.Read(bytes, 0, size);
+            return bytes;
+        }
+
         public static void Write(this Stream stream, long position, byte[] bytes)
         {
             if (stream == null)

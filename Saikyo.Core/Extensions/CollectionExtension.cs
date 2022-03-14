@@ -4,7 +4,9 @@ using Newtonsoft.Json.Linq;
 using Saikyo.Core.Exceptions;
 using Saikyo.Core.Helpers;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
 namespace Saikyo.Core.Extensions
@@ -83,6 +85,59 @@ namespace Saikyo.Core.Extensions
             }
 
             return collection;
+        }
+
+        public static bool Insert(this ICollection collection, object obj)
+        {
+            if (obj == null)
+            {
+                throw new ArgumentNullException();
+            }
+            if (collection.Disposed)
+            {
+                throw new InvalidOperationException("This collection has been disposed, you can't add data into it");
+            }
+
+            var keyValue = ReflectionHelper.GetValue(obj, collection.Key);
+            if (keyValue == null)
+            {
+                throw new ArgumentNullException($"The {collection.Key} property of inserted object is null");
+            }
+
+            long id = collection.ColumnGathers[collection.Key].AddData(keyValue);
+            var inserted = new ConcurrentDictionary<string, bool>();
+            collection.ColumnGathers.Where(p => p.Key != collection.Key).AsParallel().ForAll(pair =>
+            {
+                var value = ReflectionHelper.GetValue(obj, pair.Key);
+                if (value == null)
+                {
+                    return;
+                }
+
+                if (pair.Value.AddData(value, id) <= 0)
+                {
+                    inserted.TryAdd(pair.Key, false);
+                }
+                else
+                {
+                    inserted.TryAdd(pair.Key, true);
+                }
+            });
+            if (inserted.Values.Any(x => !x))
+            {
+                collection.ColumnGathers.AsParallel().ForAll(pair =>
+                {
+                    if (pair.Key == collection.Key || (inserted.ContainsKey(pair.Key) && inserted[pair.Key]))
+                    {
+                        pair.Value.Delete(id);
+                    }
+                });
+                return false;
+            }
+            else
+            {
+                return true;
+            }
         }
     }
 }

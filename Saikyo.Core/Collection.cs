@@ -367,4 +367,92 @@ namespace Saikyo.Core
 
         protected override object GetValue(object obj, string property) => this.properties[property].GetValue(obj);
     }
+
+    public class Collection2 : ICollection
+    {
+        public string Database { get; private set; }
+
+        public string Name { get; private set; }
+
+        public bool Disposed { get; private set; }
+
+        public string Key { get; private set; }
+
+        public Dictionary<string, dynamic> ColumnGathers { get; private set; }
+
+        private Dictionary<string, int> sizes = new Dictionary<string, int>();
+        private Dictionary<string, Type> types = new Dictionary<string, Type>();
+        private string dataPath;
+
+        public Collection2(string db, string name, string dataPath = "data")
+        {
+            this.dataPath = dataPath;
+            this.Database = db;
+            this.Name = name;
+            var directory = new DirectoryInfo(Path.Combine(dataPath, Path.Combine(db, name)));
+            if (!directory.Exists)
+            {
+                directory.Create();
+            }
+            var file = new FileInfo(Path.Combine(directory.FullName, "collection.json"));
+            if (file.Exists)
+            {
+                var json = File.ReadAllText(file.FullName);
+                var jObject = JsonConvert.DeserializeObject<JObject>(json);
+                this.Key = jObject["key"].ToString();
+                if (jObject.ContainsKey("types"))
+                {
+                    this.types = jObject["types"].ToObject<Dictionary<string, string>>()
+                        .Select(x => (x.Key, Value: TypeHelper.GetType(x.Value)))
+                        .Where(x => x.Value != null)
+                        .ToDictionary(x => x.Key, x => x.Value);
+                }
+                if (jObject.ContainsKey("sizes"))
+                {
+                    this.sizes = jObject["sizes"].ToObject<Dictionary<string, int>>();
+                }
+                if (this.types.Any())
+                {
+                    foreach (var pair in this.types)
+                    {
+                        var blockSize = 0;
+                        if (this.sizes.ContainsKey(pair.Key))
+                        {
+                            blockSize = this.sizes[pair.Key];
+                        }
+                        var gather = Instance.Kernel.GetGather(this.Database, this.Name, pair.Key, pair.Value, blockSize);
+                        if (gather != null)
+                        {
+                            this.ColumnGathers.Add(pair.Key, gather);
+                        }
+                    }
+                }
+            }
+        }
+
+        public bool Delete(List<long> ids)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Drop()
+        {
+            throw new NotImplementedException();
+        }
+
+        public IQueryBuilder Query(string condition = null)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Update(string column, List<long> ids, object value)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Dispose()
+        {
+            throw new NotImplementedException();
+        }
+    }
 }
