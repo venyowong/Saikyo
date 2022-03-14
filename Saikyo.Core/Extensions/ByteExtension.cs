@@ -66,6 +66,10 @@ namespace Saikyo.Core.Extensions
             {
                 return BitConverter.GetBytes(sb);
             }
+            if (obj is byte bt)
+            {
+                return new byte[] { bt };
+            }
             return null;
         }
 

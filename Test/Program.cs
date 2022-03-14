@@ -1,10 +1,14 @@
-﻿// See https://aka.ms/new-console-template for more information
-using MySql.Data.MySqlClient;
-using Saikyo.Adapter.Sql;
-using Saikyo.Core;
+﻿using Saikyo.Core;
+using Saikyo.Core.Extensions;
+using Test;
 
-Instance.Init();
-using var connection = new MySqlConnection("Server=localhost;Database=resader;Uid=root;Pwd=123456;");
 var time = DateTime.Now;
-connection.FromDatabase("resader", "article");
+var db = new Database("test");
+using var collection = db.GetCollection("model");
+collection.SetProperty<int>("Id", 0, true)
+    .SetProperty<string>("Name", 100)
+    .SetProperty<int>("Age");
+//collection.Insert(new Model { Id = 0, Name = "Foo", Age = 10 });
+//collection.Insert(new Model { Id = 1, Name = "Bar", Age = 12 });
+var result = collection.Query().Build().Select();
 Console.WriteLine(DateTime.Now - time);

@@ -1,4 +1,5 @@
 ﻿using Saikyo.Core.Extensions;
+using Saikyo.Core.Helpers;
 using Saikyo.Core.Storage.Records;
 using Serilog;
 using System;
@@ -25,9 +26,12 @@ namespace Saikyo.Core.Storage.Gathers
 
         public ConcurrentDictionary<long, IRecord> Records { get; protected set; } = new ConcurrentDictionary<long, IRecord>();
 
-        public DataGather(string file, int blockCap)
+        public string Name { get; private set; }
+
+        public DataGather(string path, string name, int blockCap)
         {
-            this.File = new FileInfo(file);
+            this.Name = name;
+            this.File = new FileInfo(Path.Combine(path, $"{name}.gather"));
             this.Stream = new FileStream(this.File.FullName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
             if (this.File.Length == 0)
             {
@@ -97,5 +101,20 @@ namespace Saikyo.Core.Storage.Gathers
             this.Stream.Flush();
             this.Stream.Dispose();
         }
+
+        public void Destroy()
+        {
+            this.Stream.Close();
+            this.File.Delete();
+        }
+    }
+
+    internal class DataGather<T> : DataGather, IGather<T>
+    {
+        public DataGather(string path, string name) : base(path, name, TypeHelper.GetTypeSize(typeof(T)) + 12)
+        {
+        }
+
+        public virtual long AddData(T data, long id = 0) => this.AddData(data.ToBytes(), id);
     }
 }

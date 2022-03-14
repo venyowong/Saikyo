@@ -9,9 +9,9 @@ using System.Text;
 
 namespace Saikyo.Core.Storage.Gathers
 {
-    internal class PolylithGather : DataGather
+    internal class PolylithGather : DataGather, IGather<string>
     {
-        public PolylithGather(string file, int blockCap) : base(file, blockCap)
+        public PolylithGather(string path, string name, int blockCap) : base(path, name, blockCap)
         {
         }
 
@@ -39,5 +39,7 @@ namespace Saikyo.Core.Storage.Gathers
             this.Records.TryAdd(record.Id, record);
             return record.Id;
         }
+
+        public long AddData(string data, long id = 0) => this.AddData(Encoding.UTF8.GetBytes(data), id);
     }
 }

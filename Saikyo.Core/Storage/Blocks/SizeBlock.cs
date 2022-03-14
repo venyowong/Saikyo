@@ -54,9 +54,9 @@ namespace Saikyo.Core.Storage.Blocks
 
         public void Dispose()
         {
-            this.Next.Dispose();
-            this.Data.Dispose();
-            this.DataSize.Dispose();
+            this.Next?.Dispose();
+            this.Data?.Dispose();
+            this.DataSize?.Dispose();
         }
     }
 }

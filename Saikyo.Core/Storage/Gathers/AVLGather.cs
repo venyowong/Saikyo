@@ -32,11 +32,20 @@ namespace Saikyo.Core.Storage.Gathers
             set => this.root.Update(value);
         }
 
+        public string Name { get; private set; }
+
         private FixedSizeStreamUnit<long> root;
 
-        public AVLGather(string file, int blockCap)
+        /// <summary>
+        /// AVLGather is a powerful data storage. The data is built in the form of binary balanced tree
+        /// </summary>
+        /// <param name="file"></param>
+        /// <param name="blockCap">The block header size is 30, so blockCap should be {size of data} + 30</param>
+        /// <exception cref="ArgumentException"></exception>
+        public AVLGather(string path, string name, int blockCap)
         {
-            this.File = new FileInfo(file);
+            this.Name = name;
+            this.File = new FileInfo(Path.Combine(path, $"{name}.gather"));
             this.Stream = new FileStream(this.File.FullName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
             if (this.File.Length == 0)
             {
@@ -53,8 +62,8 @@ namespace Saikyo.Core.Storage.Gathers
                 {
                     throw new ArgumentException($"{this.File.FullName} already exists, and the block cap is {this.BlockCap.Value}, which does not match the input of block cap {blockCap}");
                 }
-                this.UnusedBlocks = new ChainRecord(this.Stream, 0, this.HeaderSize, blockCap, true);
                 this.root = new FixedSizeStreamUnit<long>(this.Stream, 12);
+                this.UnusedBlocks = new ChainRecord(this.Stream, 0, this.HeaderSize, blockCap, true);
             }
         }
 
@@ -85,6 +94,14 @@ namespace Saikyo.Core.Storage.Gathers
 
             var record = new AVLRecord<T>(this.Stream, id, this.HeaderSize, this.BlockCap.Value, data, this);
             this.Records.TryAdd(record.Id, record);
+            if (this.Root == 0)
+            {
+                this.Root = id;
+            }
+            else
+            {
+                ((AVLRecord<T>)this.GetRecord(this.Root)).AddRecord(record);
+            }
             return record.Id;
         }
 
@@ -211,6 +228,12 @@ namespace Saikyo.Core.Storage.Gathers
                 .Eq(t)
                 .Select(n => n.ToColumn())
                 .ToList();
+        }
+
+        public void Destroy()
+        {
+            this.Stream.Close();
+            this.File.Delete();
         }
     }
 }

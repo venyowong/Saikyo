@@ -13,9 +13,9 @@ namespace Saikyo.Core
             this.Name = name;
         }
 
-        public Collection<T> GetCollection<T>(string name) where T : new()
-            => Instance.Kernel.GetCollection<T>(this.Name, name);
+        public Collection<T> GetCollection<T>(string name, string dataPath = "data") where T : new()
+            => new Collection<T>(this.Name, name, dataPath);
 
-        public Collection GetCollection(string name) => Instance.Kernel.GetCollection(this.Name, name);
+        public Collection GetCollection(string name, string dataPath = "data") => new Collection(this.Name, name, dataPath);
     }
 }

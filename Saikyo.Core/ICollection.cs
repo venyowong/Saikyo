@@ -17,12 +17,17 @@ namespace Saikyo.Core
 
         Dictionary<string, dynamic> ColumnGathers { get; }
 
+        Type GetPropertyType(string column);
+
         IQueryBuilder Query(string condition = null);
 
-        bool Delete(List<long> ids);
-
-        void Update(string column, List<long> ids, object value);
-
         void Drop();
+    }
+
+    public interface IDynamicCollection : ICollection
+    {
+        IDynamicCollection SetProperty(string property, Type type, int size = 0, bool key = false);
+
+        IDynamicCollection SetProperty<T>(string property, int size = 0, bool key = false);
     }
 }

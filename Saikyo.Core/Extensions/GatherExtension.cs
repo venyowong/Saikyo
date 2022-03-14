@@ -1,9 +1,14 @@
-﻿using Saikyo.Core.Storage.Blocks;
+﻿using Saikyo.Core.Attributes;
+using Saikyo.Core.Helpers;
+using Saikyo.Core.Storage.Blocks;
 using Saikyo.Core.Storage.Gathers;
 using Saikyo.Core.Storage.Records;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 
 namespace Saikyo.Core.Extensions
@@ -60,6 +65,83 @@ namespace Saikyo.Core.Extensions
 
             gather.UnusedBlocks.PushBlock(record.Head);
             return true;
+        }
+
+        private static ConcurrentDictionary<string, ConstructorInfo> _gatherConstractors = new ConcurrentDictionary<string, ConstructorInfo>();
+        public static dynamic CreateGather(this Type type, string path, string name, int blockCap = 0)
+        {
+            if (Type.GetTypeCode(type) == TypeCode.String)
+            {
+                if (blockCap <= 0)
+                {
+                    return new TextGather(path, name);
+                }
+                else if (blockCap > 200)
+                {
+                    return new TextGather(path, name, blockCap);
+                }
+                else
+                {
+                    return new AVLGather<string>(path, name, blockCap);
+                }
+            }
+
+            blockCap = TypeHelper.GetTypeSize(type) + 30;
+            if (_gatherConstractors.ContainsKey(type.Name))
+            {
+                return _gatherConstractors[type.Name].Invoke(new object[] { path, name, blockCap });
+            }
+
+            lock (_gatherConstractors)
+            {
+                if (_gatherConstractors.ContainsKey(type.Name))
+                {
+                    return _gatherConstractors[type.Name].Invoke(new object[] { path, name, blockCap });
+                }
+
+                var constructor = typeof(AVLGather<>).MakeGenericType(type).GetConstructors().First();
+                _gatherConstractors.TryAdd(type.Name, constructor);
+                return constructor.Invoke(new object[] { path, name, blockCap });
+            }
+        }
+
+        public static dynamic CreateGather(this PropertyInfo property, string path)
+        {
+            if (Type.GetTypeCode(property.PropertyType) == TypeCode.String)
+            {
+                var size = property.GetCustomAttribute<SizeAttribute>();
+                if (size.Size <= 0)
+                {
+                    return new TextGather(path, property.Name);
+                }
+                else if (size.Size > 200)
+                {
+                    return new TextGather(path, property.Name, size.Size);
+                }
+                else
+                {
+                    return new AVLGather<string>(path, property.Name, size.Size);
+                }
+            }
+
+            var blockCap = TypeHelper.GetTypeSize(property.PropertyType) + 30;
+
+            if (_gatherConstractors.ContainsKey(property.PropertyType.Name))
+            {
+                return _gatherConstractors[property.PropertyType.Name].Invoke(new object[] { path, property.Name, blockCap });
+            }
+
+            lock (_gatherConstractors)
+            {
+                if (_gatherConstractors.ContainsKey(property.PropertyType.Name))
+                {
+                    return _gatherConstractors[property.PropertyType.Name].Invoke(new object[] { path, property.Name, blockCap });
+                }
+
+                var constructor = typeof(AVLGather<>).MakeGenericType(property.PropertyType).GetConstructors().First();
+                _gatherConstractors.TryAdd(property.PropertyType.Name, constructor);
+                return (IGather)constructor.Invoke(new object[] { path, property.Name, blockCap });
+            }
         }
     }
 }

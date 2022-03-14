@@ -7,9 +7,9 @@ using System.Text;
 
 namespace Saikyo.Core.Storage.Blocks
 {
-    internal class AVLBlock<T> : IValueBlock<T>, IAVLNode<T> where T : IComparable<T>
+    internal class AVLBlock<T> : IValueBlock<T>, ISizeBlock, IAVLNode<T> where T : IComparable<T>
     {
-        public const int HeaderSize = 26;
+        public readonly int HeaderSize = 30;
 
         public T Value { get; private set; }
 
@@ -57,54 +57,76 @@ namespace Saikyo.Core.Storage.Blocks
 
         public IAVLTree<T> Tree { get; private set; }
 
+        public FixedSizeStreamUnit<int> DataSize { get; private set; }
+
         private FixedSizeStreamUnit<long> parent;
         private FixedSizeStreamUnit<long> left;
         private FixedSizeStreamUnit<byte> leftDepth;
         private FixedSizeStreamUnit<long> right;
         private FixedSizeStreamUnit<byte> rightDepth;
 
-        public AVLBlock(Stream stream, long id, int offset, IAVLTree<T> tree)
+        public AVLBlock(Stream stream, long id, int offset, IAVLTree<T> tree, int cap = 0)
         {
             this.Stream = stream;
             this.Id = id;
-            var dataSize = TypeHelper.GetTypeSize(typeof(T));
-            this.Cap = dataSize + this.HeaderSize;
+            var type = typeof(T);
+            if (Type.GetTypeCode(type) == TypeCode.String)
+            {
+                this.Cap = cap;
+            }
+            else
+            {
+                var dataSize = TypeHelper.GetTypeSize(type);
+                this.Cap = dataSize + this.HeaderSize;
+            }
             this.Offset = offset + id * this.Cap;
             this.parent = new FixedSizeStreamUnit<long>(stream, this.Offset);
-            this.left = new FixedSizeStreamUnit<long>(stream, this.Next.Offset + this.Next.Cap);
+            this.left = new FixedSizeStreamUnit<long>(stream, this.parent.Offset + this.parent.Cap);
             this.leftDepth = new FixedSizeStreamUnit<byte>(stream, this.left.Offset + this.left.Cap);
             this.right = new FixedSizeStreamUnit<long>(stream, this.leftDepth.Offset + this.leftDepth.Cap);
-            this.rightDepth = new FixedSizeStreamUnit<byte>(stream, this.right.Offset + this.rightDepth.Cap);
-            this.Data = new StreamUnit(stream, this.rightDepth.Offset + this.rightDepth.Cap, dataSize, dataSize);
+            this.rightDepth = new FixedSizeStreamUnit<byte>(stream, this.right.Offset + this.right.Cap);
+            this.DataSize = new FixedSizeStreamUnit<int>(stream, this.rightDepth.Offset + this.rightDepth.Cap);
+            this.Data = new StreamUnit(stream, this.DataSize.Offset + this.DataSize.Cap, this.Cap - this.HeaderSize, this.DataSize.Value);
             this.Value = this.Data.Data.FromBytes<T>();
             this.Tree = tree;
         }
 
-        public AVLBlock(Stream stream, long id, int offset, T t, IAVLTree<T> tree)
+        public AVLBlock(Stream stream, long id, int offset, T t, IAVLTree<T> tree, int cap = 0)
         {
             this.Stream = stream;
             this.Id = id;
-            var dataSize = TypeHelper.GetTypeSize(typeof(T));
-            this.Cap = dataSize + this.HeaderSize;
+            var type = typeof(T);
+            if (Type.GetTypeCode(type) == TypeCode.String)
+            {
+                this.Cap = cap;
+            }
+            else
+            {
+                var dataSize = TypeHelper.GetTypeSize(type);
+                this.Cap = dataSize + this.HeaderSize;
+            }
             this.Offset = offset + id * this.Cap;
             this.parent = new FixedSizeStreamUnit<long>(stream, this.Offset);
-            this.left = new FixedSizeStreamUnit<long>(stream, this.Next.Offset + this.Next.Cap);
+            this.left = new FixedSizeStreamUnit<long>(stream, this.parent.Offset + this.parent.Cap);
             this.leftDepth = new FixedSizeStreamUnit<byte>(stream, this.left.Offset + this.left.Cap);
             this.right = new FixedSizeStreamUnit<long>(stream, this.leftDepth.Offset + this.leftDepth.Cap);
-            this.rightDepth = new FixedSizeStreamUnit<byte>(stream, this.right.Offset + this.rightDepth.Cap);
-            this.Data = new StreamUnit(stream, this.rightDepth.Offset + this.rightDepth.Cap, dataSize, t.ToBytes());
+            this.rightDepth = new FixedSizeStreamUnit<byte>(stream, this.right.Offset + this.right.Cap);
+            var data = t.ToBytes();
+            this.DataSize = new FixedSizeStreamUnit<int>(stream, this.rightDepth.Offset + this.rightDepth.Cap, data.Length);
+            this.Data = new StreamUnit(stream, this.DataSize.Offset + this.DataSize.Cap, this.Cap - this.HeaderSize, data);
             this.Value = t;
             this.Tree = tree;
         }
 
         public void Dispose()
         {
-            this.parent.Dispose();
-            this.left.Dispose();
-            this.leftDepth.Dispose();
-            this.right.Dispose();
-            this.rightDepth.Dispose();
-            this.Data.Dispose();
+            this.parent?.Dispose();
+            this.left?.Dispose();
+            this.leftDepth?.Dispose();
+            this.right?.Dispose();
+            this.rightDepth?.Dispose();
+            this.DataSize?.Dispose();
+            this.Data?.Dispose();
         }
 
         public void Update(T value)

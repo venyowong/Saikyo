@@ -12,7 +12,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Saikyo.Adapter.Sql\Saikyo.Adapter.Sql.csproj" />
     <ProjectReference Include="..\Saikyo.Core\Saikyo.Core.csproj" />
   </ItemGroup>
 

@@ -7,7 +7,7 @@ namespace Saikyo.Core.Storage.Blocks
 {
     internal class Block : IBlock
     {
-        public const int HeaderSize = 8;
+        public readonly int HeaderSize = 8;
 
         public long Id { get; private set; }
 
@@ -37,7 +37,7 @@ namespace Saikyo.Core.Storage.Blocks
             }
             if (!ignoreData)
             {
-                var dataCap = cap - this.HeaderSize;
+                var dataCap = cap - HeaderSize;
                 this.Data = new StreamUnit(stream, this.Next.Offset + this.Next.Cap, dataCap, dataCap);
             }
         }
@@ -56,14 +56,14 @@ namespace Saikyo.Core.Storage.Blocks
             {
                 this.Next = new FixedSizeStreamUnit<long>(stream, this.Offset);
             }
-            var dataCap = cap - this.HeaderSize;
+            var dataCap = cap - HeaderSize;
             this.Data = new StreamUnit(stream, this.Next.Offset + this.Next.Cap, dataCap, bytes);
         }
 
         public void Dispose()
         {
-            this.Next.Dispose();
-            this.Data.Dispose();
+            this.Next?.Dispose();
+            this.Data?.Dispose();
         }
     }
 }

@@ -9,6 +9,8 @@ namespace Saikyo.Core.Storage.Gathers
 {
     internal interface IGather : IHeaderSize, IDisposable
     {
+        string Name { get; }
+
         FileInfo File { get; }
 
         Stream Stream { get; }
@@ -24,6 +26,8 @@ namespace Saikyo.Core.Storage.Gathers
         long AddData(byte[] data, long id = 0);
 
         IRecord GetRecord(long id);
+
+        void Destroy();
     }
 
     internal interface IGather<T> : IGather

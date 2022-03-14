@@ -24,7 +24,7 @@ namespace Saikyo.Core.Storage.Records
             this.Id = id;
             this.Offset = offset;
             this.BlockCap = blockCap;
-            this.Head = new Blocks.AVLBlock<T>(stream, id, offset, tree);
+            this.Head = new AVLBlock<T>(stream, id, offset, tree, blockCap);
         }
 
         public AVLRecord(Stream stream, long id, int offset, int blockCap, T t, IAVLTree<T> tree)
@@ -33,8 +33,10 @@ namespace Saikyo.Core.Storage.Records
             this.Id = id;
             this.Offset = offset;
             this.BlockCap = blockCap;
-            this.Head = new Blocks.AVLBlock<T>(stream, id, offset, t, tree);
+            this.Head = new AVLBlock<T>(stream, id, offset, t, tree, blockCap);
         }
+
+        public void AddRecord(AVLRecord<T> record) => ((AVLBlock<T>)this.Head).AddNode((AVLBlock<T>)record.Head);
 
         public void Dispose() => this.Head.Dispose();
     }
