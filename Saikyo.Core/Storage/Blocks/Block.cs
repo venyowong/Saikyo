@@ -54,7 +54,7 @@ namespace Saikyo.Core.Storage.Blocks
             }
             else
             {
-                this.Next = new FixedSizeStreamUnit<long>(stream, this.Offset);
+                this.Next = new FixedSizeStreamUnit<long>(stream, this.Offset, 0);
             }
             var dataCap = cap - HeaderSize;
             this.Data = new StreamUnit(stream, this.Next.Offset + this.Next.Cap, dataCap, bytes);

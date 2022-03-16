@@ -105,6 +105,17 @@ namespace Saikyo.Core.Storage.Gathers
             return record.Id;
         }
 
+        public bool Delete(long id)
+        {
+            if (!this.Records.TryRemove(id, out var record))
+            {
+                record = new Record(this.Stream, id, this.HeaderSize, this.BlockCap.Value);
+            }
+
+            this.UnusedBlocks.PushBlock(record.Head);
+            return true;
+        }
+
         public void Dispose()
         {
             foreach (var record in this.Records.Values)
@@ -141,6 +152,17 @@ namespace Saikyo.Core.Storage.Gathers
             var record = new AVLRecord<T>(this.Stream, id, this.HeaderSize, this.BlockCap.Value, this);
             this.Records.TryAdd(id, record);
             return record;
+        }
+
+        public T GetRecordValue(long id)
+        {
+            var record = this.GetRecord(id);
+            if (record == null)
+            {
+                return default;
+            }
+         
+            return ((AVLRecord<T>)record).GetValue();
         }
 
         public Column GetColumn(long id)

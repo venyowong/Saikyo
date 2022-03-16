@@ -56,17 +56,6 @@ namespace Saikyo.Core.Extensions
             return gather.LatestBlockId.Value;
         }
 
-        public static bool Delete(this IGather gather, long id)
-        {
-            if (!gather.Records.TryRemove(id, out var record))
-            {
-                record = new Record(gather.Stream, id, gather.HeaderSize, gather.BlockCap.Value);
-            }
-
-            gather.UnusedBlocks.PushBlock(record.Head);
-            return true;
-        }
-
         private static ConcurrentDictionary<string, ConstructorInfo> _gatherConstractors = new ConcurrentDictionary<string, ConstructorInfo>();
         public static dynamic CreateGather(this Type type, string path, string name, int blockCap = 0)
         {
@@ -78,30 +67,30 @@ namespace Saikyo.Core.Extensions
                 }
                 else if (blockCap > 200)
                 {
-                    return new TextGather(path, name, blockCap);
+                    return new TextGather(path, name, blockCap + 12);
                 }
                 else
                 {
-                    return new AVLGather<string>(path, name, blockCap);
+                    return new AVLGather<string>(path, name, blockCap + 30);
                 }
             }
 
             blockCap = TypeHelper.GetTypeSize(type) + 30;
             if (_gatherConstractors.ContainsKey(type.Name))
             {
-                return _gatherConstractors[type.Name].Invoke(new object[] { path, name, blockCap });
+                return _gatherConstractors[type.Name].Invoke(new object[] { path, name, blockCap + 30 });
             }
 
             lock (_gatherConstractors)
             {
                 if (_gatherConstractors.ContainsKey(type.Name))
                 {
-                    return _gatherConstractors[type.Name].Invoke(new object[] { path, name, blockCap });
+                    return _gatherConstractors[type.Name].Invoke(new object[] { path, name, blockCap + 30 });
                 }
 
                 var constructor = typeof(AVLGather<>).MakeGenericType(type).GetConstructors().First();
                 _gatherConstractors.TryAdd(type.Name, constructor);
-                return constructor.Invoke(new object[] { path, name, blockCap });
+                return constructor.Invoke(new object[] { path, name, blockCap + 30 });
             }
         }
 

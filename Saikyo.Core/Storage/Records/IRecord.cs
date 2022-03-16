@@ -17,5 +17,7 @@ namespace Saikyo.Core.Storage.Records
         int Offset { get; }
 
         int BlockCap { get; }
+
+        byte[] GetBytes();
     }
 }

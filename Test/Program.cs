@@ -1,14 +1,24 @@
-﻿using Saikyo.Core;
+﻿using Dapper;
+using MySql.Data.MySqlClient;
+using Saikyo.Core;
 using Saikyo.Core.Extensions;
 using Test;
 
-var time = DateTime.Now;
-var db = new Database("test");
-using var collection = db.GetCollection("model");
-collection.SetProperty<int>("Id", 0, true)
-    .SetProperty<string>("Name", 100)
-    .SetProperty<int>("Age");
-//collection.Insert(new Model { Id = 0, Name = "Foo", Age = 10 });
-//collection.Insert(new Model { Id = 1, Name = "Bar", Age = 12 });
+using var connection = new MySqlConnection("Server=localhost;Database=resader;Uid=root;Pwd=123456;");
+var feeds = (await connection.QueryAsync("SELECT * FROM resader.feed;")).ToList();
+var db = new Database("resader");
+using var collection = db.GetCollection("feed");
+collection.SetProperty<string>("id", 50, true)
+    .SetProperty<string>("url", 500)
+    .SetProperty<string>("title", 500)
+    .SetProperty<string>("label", 100)
+    .SetProperty<string>("description")
+    .SetProperty<string>("image", 500)
+    .SetProperty<DateTime>("create_time")
+    .SetProperty<DateTime>("update_time");
+//var time = DateTime.Now;
+//feeds.ForEach(f => collection.Insert((object)f));
+////collection.Insert((object)feeds[0]);
+//Console.WriteLine(DateTime.Now - time);
 var result = collection.Query().Build().Select();
-Console.WriteLine(DateTime.Now - time);
+Console.WriteLine(result);

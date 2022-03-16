@@ -25,6 +25,8 @@ namespace Saikyo.Core.Storage.Gathers
 
         long AddData(byte[] data, long id = 0);
 
+        bool Delete(long id);
+
         IRecord GetRecord(long id);
 
         void Destroy();
@@ -33,5 +35,7 @@ namespace Saikyo.Core.Storage.Gathers
     internal interface IGather<T> : IGather
     {
         long AddData(T data, long id = 0);
+
+        T GetRecordValue(long id);
     }
 }

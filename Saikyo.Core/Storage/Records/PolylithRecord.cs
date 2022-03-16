@@ -118,5 +118,12 @@ namespace Saikyo.Core.Storage.Records
         }
 
         public void Dispose() => this.Blocks.ForEach(x => x.Dispose());
+
+        public byte[] GetBytes()
+        {
+            var bytes = new List<byte>();
+            this.Blocks.ForEach(b => bytes.AddRange(b.Data.Data));
+            return bytes.ToArray();
+        }
     }
 }

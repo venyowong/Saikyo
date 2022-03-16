@@ -59,5 +59,11 @@ namespace Saikyo.Core.Extensions
                 record.Blocks.Add(block);
             }
         }
+
+        public static T GetValue<T>(this IRecord record)
+        {
+            var bytes = record?.Head.Data.Data;
+            return bytes.FromBytes<T>();
+        }
     }
 }

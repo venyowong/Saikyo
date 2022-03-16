@@ -4,13 +4,11 @@ using System.Text;
 
 namespace Saikyo.Core.Storage
 {
-    internal interface IAVLTree<T> where T : IComparable<T>
+    internal interface IAVLTree<T> : IColumnGetter where T : IComparable<T>
     {
         long Root { get; set; }
 
         IAVLNode<T> GetNode(long id);
-
-        Column GetColumn(long id);
 
         List<Column> GetAllColumns();
 

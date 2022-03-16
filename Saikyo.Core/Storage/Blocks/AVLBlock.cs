@@ -106,11 +106,11 @@ namespace Saikyo.Core.Storage.Blocks
                 this.Cap = dataSize + this.HeaderSize;
             }
             this.Offset = offset + id * this.Cap;
-            this.parent = new FixedSizeStreamUnit<long>(stream, this.Offset);
-            this.left = new FixedSizeStreamUnit<long>(stream, this.parent.Offset + this.parent.Cap);
-            this.leftDepth = new FixedSizeStreamUnit<byte>(stream, this.left.Offset + this.left.Cap);
-            this.right = new FixedSizeStreamUnit<long>(stream, this.leftDepth.Offset + this.leftDepth.Cap);
-            this.rightDepth = new FixedSizeStreamUnit<byte>(stream, this.right.Offset + this.right.Cap);
+            this.parent = new FixedSizeStreamUnit<long>(stream, this.Offset, 0);
+            this.left = new FixedSizeStreamUnit<long>(stream, this.parent.Offset + this.parent.Cap, 0);
+            this.leftDepth = new FixedSizeStreamUnit<byte>(stream, this.left.Offset + this.left.Cap, 0);
+            this.right = new FixedSizeStreamUnit<long>(stream, this.leftDepth.Offset + this.leftDepth.Cap, 0);
+            this.rightDepth = new FixedSizeStreamUnit<byte>(stream, this.right.Offset + this.right.Cap, 0);
             var data = t.ToBytes();
             this.DataSize = new FixedSizeStreamUnit<int>(stream, this.rightDepth.Offset + this.rightDepth.Cap, data.Length);
             this.Data = new StreamUnit(stream, this.DataSize.Offset + this.DataSize.Cap, this.Cap - this.HeaderSize, data);

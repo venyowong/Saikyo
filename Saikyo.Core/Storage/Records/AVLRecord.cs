@@ -38,6 +38,10 @@ namespace Saikyo.Core.Storage.Records
 
         public void AddRecord(AVLRecord<T> record) => ((AVLBlock<T>)this.Head).AddNode((AVLBlock<T>)record.Head);
 
+        public T GetValue() => ((AVLBlock<T>)this.Head).Value;
+
         public void Dispose() => this.Head.Dispose();
+
+        public byte[] GetBytes() => this.Head.Data.Data;
     }
 }

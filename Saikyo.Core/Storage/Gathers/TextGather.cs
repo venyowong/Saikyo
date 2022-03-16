@@ -9,7 +9,7 @@ using System.Text;
 
 namespace Saikyo.Core.Storage.Gathers
 {
-    internal class TextGather : IGather<string>
+    internal class TextGather : IGather<string>, IColumnGetter
     {
         public FileInfo File => this.keyGather.File;
 
@@ -30,10 +30,16 @@ namespace Saikyo.Core.Storage.Gathers
         private DataGather<long> keyGather;
         private PolylithGather valueGather;
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="name"></param>
+        /// <param name="textCap">The block header size is 12</param>
         public TextGather(string path, string name, int textCap = 4096)
         {
             this.keyGather = new DataGather<long>(path, name);
-            this.valueGather = new PolylithGather(path, $"{name}_text", textCap);
+            this.valueGather = new PolylithGather(path, $"{name}_polylith_text", textCap);
         }
 
         public long AddData(string data, long id = 0)
@@ -75,5 +81,36 @@ namespace Saikyo.Core.Storage.Gathers
             this.valueGather.Destroy();
             this.keyGather.Destroy();
         }
+
+        public bool Delete(long id)
+        {
+            var valueId = this.keyGather.GetRecordValue(id);
+            if (valueId > 0)
+            {
+                if (!this.valueGather.Delete(valueId))
+                {
+                    return false;
+                }
+            }
+
+            return this.keyGather.Delete(id);
+        }
+
+        public string GetRecordValue(long id)
+        {
+            var valueId = this.keyGather.GetRecordValue(id);
+            if (valueId <= 0)
+            {
+                return null;
+            }
+
+            return this.valueGather.GetRecordValue(valueId);
+        }
+
+        public Column GetColumn(long id) => new Column
+        {
+            Id = id,
+            Value = this.GetRecordValue(id)
+        };
     }
 }

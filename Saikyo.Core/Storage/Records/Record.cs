@@ -37,5 +37,7 @@ namespace Saikyo.Core.Storage.Records
         }
 
         public void Dispose() => this.Head.Dispose();
+
+        public byte[] GetBytes() => this.Head.Data.Data;
     }
 }

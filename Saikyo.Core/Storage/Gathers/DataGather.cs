@@ -71,19 +71,19 @@ namespace Saikyo.Core.Storage.Gathers
                 id = this.GetFreeBlockId();
             }
 
-            var record = new Records.Record(this.Stream, id, this.HeaderSize, this.BlockCap.Value, data);
+            var record = new Record(this.Stream, id, this.HeaderSize, this.BlockCap.Value, data);
             this.Records.TryAdd(record.Id, record);
             return record.Id;
         }
 
-        public IRecord GetRecord(long id)
+        public virtual IRecord GetRecord(long id)
         {
             if (this.Records.ContainsKey(id))
             {
                 return this.Records[id];
             }
 
-            var record = new Records.Record(this.Stream, id, this.HeaderSize, this.BlockCap.Value);
+            var record = new Record(this.Stream, id, this.HeaderSize, this.BlockCap.Value);
             this.Records.TryAdd(id, record);
             return record;
         }
@@ -107,6 +107,17 @@ namespace Saikyo.Core.Storage.Gathers
             this.Stream.Close();
             this.File.Delete();
         }
+
+        public bool Delete(long id)
+        {
+            if (!this.Records.TryRemove(id, out var record))
+            {
+                record = new Record(this.Stream, id, this.HeaderSize, this.BlockCap.Value);
+            }
+
+            this.UnusedBlocks.PushBlock(record.Head);
+            return true;
+        }
     }
 
     internal class DataGather<T> : DataGather, IGather<T>
@@ -116,5 +127,7 @@ namespace Saikyo.Core.Storage.Gathers
         }
 
         public virtual long AddData(T data, long id = 0) => this.AddData(data.ToBytes(), id);
+
+        public T GetRecordValue(long id) => this.GetRecord(id).GetValue<T>();
     }
 }

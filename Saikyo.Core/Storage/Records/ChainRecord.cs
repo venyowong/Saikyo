@@ -39,5 +39,10 @@ namespace Saikyo.Core.Storage.Records
         }
 
         public void Dispose() => this.Blocks.ForEach(x => x.Dispose());
+
+        public byte[] GetBytes()
+        {
+            throw new NotImplementedException();
+        }
     }
 }
