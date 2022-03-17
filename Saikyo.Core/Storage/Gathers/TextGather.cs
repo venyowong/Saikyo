@@ -44,7 +44,7 @@ namespace Saikyo.Core.Storage.Gathers
 
         public long AddData(string data, long id = 0)
         {
-            if (string.IsNullOrWhiteSpace(data))
+            if (string.IsNullOrWhiteSpace(data) && id == 0)
             {
                 return 0;
             }

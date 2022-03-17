@@ -133,6 +133,11 @@ namespace Saikyo.Core.Storage.Gathers
 
         public IAVLNode<T> GetNode(long id)
         {
+            if (id <= 0)
+            {
+                return null;
+            }
+
             var record = (AVLRecord<T>)this.GetRecord(id);
             if (record == null)
             {

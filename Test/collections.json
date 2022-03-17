@@ -2,16 +2,16 @@
   "feed": {
     "id": {
       "type": "string",
-      "size": 100,
+      "size": 50,
       "key": true
     },
     "url": {
       "type": "string",
-      "size": 400
+      "size": 500
     },
     "title": {
       "type": "string",
-      "size": 400
+      "size": 500
     },
     "image": {
       "type": "string",
@@ -39,15 +39,15 @@
     },
     "url": {
       "type": "string",
-      "size": 400
+      "size": 500
     },
     "feed_id": {
       "type": "string",
-      "size": 50
+      "size": 100
     },
     "title": {
       "type": "string",
-      "size": 400
+      "size": 500
     },
     "summary": {
       "type": "string",
@@ -87,7 +87,7 @@
     },
     "image": {
       "type": "string",
-      "size": 400
+      "size": 500
     }
   }
 }
