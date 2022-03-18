@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Saikyo.Core.Storage.Gathers
 {
@@ -35,6 +37,8 @@ namespace Saikyo.Core.Storage.Gathers
         public string Name { get; private set; }
 
         private FixedSizeStreamUnit<long> root;
+        private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        private Task flushTask;
 
         /// <summary>
         /// AVLGather is a powerful data storage. The data is built in the form of binary balanced tree
@@ -65,6 +69,8 @@ namespace Saikyo.Core.Storage.Gathers
                 this.root = new FixedSizeStreamUnit<long>(this.Stream, 12);
                 this.UnusedBlocks = new ChainRecord(this.Stream, 0, this.HeaderSize, blockCap, true);
             }
+
+            this.flushTask = this.StartTimingFlush(this.cancellationTokenSource.Token);
         }
 
         public long AddData(byte[] data, long id = 0)
@@ -118,6 +124,8 @@ namespace Saikyo.Core.Storage.Gathers
 
         public void Dispose()
         {
+            this.cancellationTokenSource.Cancel();
+
             foreach (var record in this.Records.Values)
             {
                 record.Dispose();
@@ -127,8 +135,8 @@ namespace Saikyo.Core.Storage.Gathers
             this.BlockCap.Dispose();
             this.root.Dispose();
             this.UnusedBlocks.Dispose();
-            this.Stream.Flush();
-            this.Stream.Dispose();
+            this.Stream.FlushSafely();
+            this.Stream.DisposeSafely();
         }
 
         public IAVLNode<T> GetNode(long id)
@@ -259,8 +267,22 @@ namespace Saikyo.Core.Storage.Gathers
 
         public void Destroy()
         {
-            this.Stream.Close();
+            this.Stream.CloseSafely();
             this.File.Delete();
+        }
+
+        public void Flush()
+        {
+            foreach (var record in this.Records.Values)
+            {
+                record.Dispose();
+            }
+
+            this.LatestBlockId.Dispose();
+            this.BlockCap.Dispose();
+            this.root.Dispose();
+            this.UnusedBlocks.Dispose();
+            this.Stream.FlushSafely();
         }
     }
 }

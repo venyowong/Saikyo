@@ -3,6 +3,7 @@ using Saikyo.Core.Helpers;
 using Saikyo.Core.Storage.Blocks;
 using Saikyo.Core.Storage.Gathers;
 using Saikyo.Core.Storage.Records;
+using Serilog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -10,6 +11,8 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Saikyo.Core.Extensions
 {
@@ -131,6 +134,30 @@ namespace Saikyo.Core.Extensions
                 _gatherConstractors.TryAdd(property.PropertyType.Name, constructor);
                 return (IGather)constructor.Invoke(new object[] { path, property.Name, blockCap });
             }
+        }
+
+        public static Task StartTimingFlush(this IGather gather, CancellationToken token)
+        {
+            var task = Task.Run(() =>
+            {
+                while (true)
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    Thread.Sleep(3000);
+                    var time = DateTime.Now;
+                    gather.Flush();
+                    var took = DateTime.Now - time;
+                    if (took.TotalSeconds >= 1)
+                    {
+                        Log.Information($"{gather.File.FullName} has been flushed, took {took}");
+                    }
+                }
+            });
+            return task;
         }
     }
 }

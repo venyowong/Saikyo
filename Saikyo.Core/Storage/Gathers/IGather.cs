@@ -30,6 +30,8 @@ namespace Saikyo.Core.Storage.Gathers
         IRecord GetRecord(long id);
 
         void Destroy();
+
+        void Flush();
     }
 
     internal interface IGather<T> : IGather

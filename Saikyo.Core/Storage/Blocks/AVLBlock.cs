@@ -120,6 +120,15 @@ namespace Saikyo.Core.Storage.Blocks
 
         public void Dispose()
         {
+            if (this.Id == this.Left)
+            {
+                throw new SystemException("this.Id == this.Left");
+            }
+            if (this.Id == this.Right)
+            {
+                throw new SystemException("this.Id == this.Right");
+            }
+
             this.parent?.Dispose();
             this.left?.Dispose();
             this.leftDepth?.Dispose();
@@ -139,7 +148,7 @@ namespace Saikyo.Core.Storage.Blocks
         {
             lock (this)
             {
-                if (this.Value.CompareTo(node.Value) > 0) // left
+                if (this.Value?.CompareTo(node.Value) > 0) // left
                 {
                     if (this.Left <= 0) // left leef is empty, so set the node as left leef
                     {

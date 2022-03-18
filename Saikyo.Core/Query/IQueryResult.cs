@@ -6,13 +6,17 @@ namespace Saikyo.Core.Query
 {
     public interface IQueryResult
     {
-        List<long> Ids { get; }
+        IEnumerable<long> Ids { get; }
 
         Dictionary<string, Dictionary<long, Column>> Indeies { get; }
 
         void And(IQueryResult result);
 
         void Or(IQueryResult result);
+
+        IQueryResult Skip(int count);
+
+        IQueryResult Take(int count);
 
         List<dynamic> Select(params string[] columns);
 

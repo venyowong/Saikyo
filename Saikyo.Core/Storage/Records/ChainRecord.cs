@@ -38,7 +38,13 @@ namespace Saikyo.Core.Storage.Records
             while (blockId > 0);
         }
 
-        public void Dispose() => this.Blocks.ForEach(x => x.Dispose());
+        public void Dispose()
+        {
+            lock (this.Blocks)
+            {
+                this.Blocks.ForEach(x => x.Dispose());
+            }
+        }
 
         public byte[] GetBytes()
         {

@@ -112,5 +112,11 @@ namespace Saikyo.Core.Storage.Gathers
             Id = id,
             Value = this.GetRecordValue(id)
         };
+
+        public void Flush()
+        {
+            this.valueGather.Flush();
+            this.keyGather.Flush();
+        }
     }
 }

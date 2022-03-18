@@ -7,7 +7,7 @@ namespace Saikyo.Core.Query
 {
     public class QueryResult : IQueryResult
     {
-        public List<long> Ids { get; private set; }
+        public IEnumerable<long> Ids { get; private set; }
 
         public Dictionary<string, Dictionary<long, Column>> Indeies { get; private set; } = new Dictionary<string, Dictionary<long, Column>>();
 
@@ -22,7 +22,7 @@ namespace Saikyo.Core.Query
         internal QueryResult(ICollection collection, string column, List<Column> values)
         {
             this.collection = collection;
-            this.Ids = values.Select(x => x.Id).ToList();
+            this.Ids = values.Select(x => x.Id);
             this.Indeies[column] = values.ToDictionary(x => x.Id, x => x);
         }
 
@@ -35,7 +35,7 @@ namespace Saikyo.Core.Query
 
             if (other.Ids.IsNullOrEmpty())
             {
-                this.Ids.Clear();
+                this.Ids = new List<long>();
             }
             else if (this.Ids.Any())
             {
@@ -49,9 +49,9 @@ namespace Saikyo.Core.Query
             });
         }
 
-        public int Count() => this.Ids.Count;
+        public int Count() => this.Ids.Count();
 
-        public bool Delete() => this.collection?.Delete(this.Ids) ?? false;
+        public bool Delete() => this.collection?.Delete(this.Ids.ToList()) ?? false;
 
         public void Or(IQueryResult other)
         {
@@ -60,8 +60,7 @@ namespace Saikyo.Core.Query
                 return;
             }
 
-            this.Ids.AddRange(other.Ids);
-            this.Ids = this.Ids.Distinct().ToList();
+            this.Ids = this.Ids.Union(other.Ids);
 
             this.Indeies.Merge(other.Indeies, (d1, d2) =>
             {
@@ -70,11 +69,23 @@ namespace Saikyo.Core.Query
             });
         }
 
-        public List<dynamic> Select(params string[] columns) => this.collection.Compose(this.Ids, this.Indeies, columns);
+        public List<dynamic> Select(params string[] columns) => this.collection.Compose(this.Ids.ToList(), this.Indeies, columns);
 
         public IQueryResult Update(string column, object value)
         {
-            this.collection.Update(column, this.Ids, value);
+            this.collection.Update(column, this.Ids.ToList(), value);
+            return this;
+        }
+
+        public IQueryResult Skip(int count)
+        {
+            this.Ids = this.Ids.Skip(count);
+            return this;
+        }
+
+        public IQueryResult Take(int count)
+        {
+            this.Ids = this.Ids.Take(count);
             return this;
         }
     }

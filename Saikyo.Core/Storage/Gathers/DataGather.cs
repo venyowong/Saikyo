@@ -7,6 +7,8 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Saikyo.Core.Storage.Gathers
 {
@@ -27,6 +29,9 @@ namespace Saikyo.Core.Storage.Gathers
         public ConcurrentDictionary<long, IRecord> Records { get; protected set; } = new ConcurrentDictionary<long, IRecord>();
 
         public string Name { get; private set; }
+
+        protected CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        protected Task flushTask;
 
         public DataGather(string path, string name, int blockCap)
         {
@@ -49,6 +54,8 @@ namespace Saikyo.Core.Storage.Gathers
                 }
                 this.UnusedBlocks = new ChainRecord(this.Stream, 0, this.HeaderSize, blockCap, true);
             }
+
+            this.flushTask = this.StartTimingFlush(this.cancellationTokenSource.Token);
         }
 
         public virtual long AddData(byte[] data, long id = 0)
@@ -90,6 +97,8 @@ namespace Saikyo.Core.Storage.Gathers
 
         public void Dispose()
         {
+            this.cancellationTokenSource.Cancel();
+
             foreach (var record in this.Records.Values)
             {
                 record.Dispose();
@@ -98,13 +107,13 @@ namespace Saikyo.Core.Storage.Gathers
             this.LatestBlockId.Dispose();
             this.BlockCap.Dispose();
             this.UnusedBlocks.Dispose();
-            this.Stream.Flush();
-            this.Stream.Dispose();
+            this.Stream.FlushSafely();
+            this.Stream.DisposeSafely();
         }
 
         public void Destroy()
         {
-            this.Stream.Close();
+            this.Stream.CloseSafely();
             this.File.Delete();
         }
 
@@ -117,6 +126,19 @@ namespace Saikyo.Core.Storage.Gathers
 
             this.UnusedBlocks.PushBlock(record.Head);
             return true;
+        }
+
+        public void Flush()
+        {
+            foreach (var record in this.Records.Values)
+            {
+                record.Dispose();
+            }
+
+            this.LatestBlockId.Dispose();
+            this.BlockCap.Dispose();
+            this.UnusedBlocks.Dispose();
+            this.Stream.FlushSafely();
         }
     }
 
