@@ -1,8 +1,8 @@
-﻿using Dapper;
-using MySql.Data.MySqlClient;
+﻿using Bogus;
 using Saikyo.Core;
 using Saikyo.Core.Extensions;
 using Serilog;
+using System.Diagnostics;
 using Test;
 
 Log.Logger = new LoggerConfiguration()
@@ -10,38 +10,27 @@ Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateLogger();
 
-using var connection = new MySqlConnection("Server=localhost;Database=resader;Uid=root;Pwd=123456;");
-var db = new Database("resader");
-DateTime time;
-using (var collection = db.GetCollection("article"))
+var db = new Saikyo.Core.Database("test");
+var models = new Faker<Model>()
+    .RuleFor(m => m.Id, f => f.Random.Int(0))
+    .RuleFor(m => m.Name, f => f.Name.FullName())
+    .RuleFor(m => m.Age, f => f.Random.Int(0, 100))
+    .RuleFor(m => m.Value, f => f.Random.Word())
+    .RuleFor(m => m.Value2, f => f.Random.String());
+
+var collection = db.GetCollection<Model>("model");
+var times = 20000;
+var stopwatch = new Stopwatch();
+foreach (var i in Enumerable.Range(0, times))
 {
-    collection.Configure(File.ReadAllText("collections.json"));
-    for (var i = 0; i < 1; i++)
-    {
-        time = DateTime.Now;
-        var skip = 0;
-        while (true)
-        {
-            if (skip >= 20000)
-            {
-                break;
-            }
-
-            Console.WriteLine(skip);
-            var articles = await connection.QueryAsync($"SELECT * FROM resader.article limit {skip}, 1000;");
-            if (articles == null || !articles.Any())
-            {
-                break;
-            }
-
-            skip = skip + 1000;
-            foreach (var article in articles)
-            {
-                collection.Insert((object)article);
-            }
-        }
-        Console.WriteLine(DateTime.Now - time);
-    }
-    time = DateTime.Now;
+    var model = models.Generate();
+    stopwatch.Start();
+    collection.Insert(model);
+    stopwatch.Stop();
 }
-Console.WriteLine(DateTime.Now - time);
+Console.WriteLine($"insert: {stopwatch.Elapsed}");
+stopwatch.Restart();
+collection.Dispose();
+stopwatch.Stop();
+Console.WriteLine($"dispose: {stopwatch.Elapsed}");
+Console.ReadLine();

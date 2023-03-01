@@ -99,10 +99,16 @@ namespace Saikyo.Core.Extensions
 
         public static dynamic CreateGather(this PropertyInfo property, string path)
         {
+            var ignore = property.GetCustomAttribute<IgnoreAttribute>();
+            if (ignore != null)
+            {
+                return null;
+            }
+
             if (Type.GetTypeCode(property.PropertyType) == TypeCode.String)
             {
                 var size = property.GetCustomAttribute<SizeAttribute>();
-                if (size.Size <= 0)
+                if (size == null || size.Size <= 0)
                 {
                     return new TextGather(path, property.Name);
                 }
